@@ -1,0 +1,126 @@
+{
+  "projectType": "api-service",
+  "projectName": "DevTools Hub API",
+  "projectDescription": "A modular NestJS API for managing subscriptions, payments, and user notifications with hexagonal architecture.",
+  "theme": "sequoia",
+  "primaryColor": "#0066CC",
+  "lightColor": "#3399FF",
+  "darkColor": "#003D7A",
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Get Started",
+            "pages": [
+              "introduction",
+              "quickstart",
+              "installation"
+            ]
+          },
+          {
+            "group": "Architecture",
+            "pages": [
+              "architecture/overview",
+              "architecture/hexagonal-architecture",
+              "architecture/modules"
+            ]
+          },
+          {
+            "group": "Guides",
+            "pages": [
+              "guides/authentication",
+              "guides/docker-deployment",
+              "guides/environment-variables",
+              "guides/email-notifications"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "API Reference",
+        "groups": [
+          {
+            "group": "Authentication",
+            "pages": [
+              "api/auth/register",
+              "api/auth/login"
+            ]
+          },
+          {
+            "group": "Users",
+            "pages": [
+              "api/users/get-all",
+              "api/users/get-by-id",
+              "api/users/update",
+              "api/users/delete"
+            ]
+          },
+          {
+            "group": "Plans",
+            "pages": [
+              "api/plans/get-all",
+              "api/plans/create",
+              "api/plans/update",
+              "api/plans/delete"
+            ]
+          },
+          {
+            "group": "Subscriptions",
+            "pages": [
+              "api/subscriptions/create",
+              "api/subscriptions/get-by-user",
+              "api/subscriptions/cancel",
+              "api/subscriptions/renew"
+            ]
+          },
+          {
+            "group": "Payments",
+            "pages": [
+              "api/payments/create",
+              "api/payments/get-by-user",
+              "api/payments/confirm",
+              "api/payments/refund"
+            ]
+          },
+          {
+            "group": "Notifications",
+            "pages": [
+              "api/notifications/send-email"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "JWT-based authentication with bcrypt password hashing",
+    "Subscription management with plans and billing",
+    "Payment processing with confirmation and refund support",
+    "Real-time email notifications via Gmail (Nodemailer)",
+    "Hexagonal architecture with clean separation of concerns",
+    "Comprehensive Swagger/OpenAPI documentation"
+  ],
+  "publicApiSurface": [
+    "POST /api/auth/register",
+    "POST /api/auth/login",
+    "GET /api/users/all",
+    "GET /api/users/:id",
+    "PATCH /api/users/:id",
+    "DELETE /api/users/:id",
+    "GET /api/plans/all",
+    "POST /api/plans/create",
+    "PATCH /api/plans/:id",
+    "DELETE /api/plans/:id",
+    "POST /api/subscriptions/create",
+    "GET /api/subscriptions/:userId",
+    "PATCH /api/subscriptions/:id/cancel",
+    "POST /api/subscriptions/renew",
+    "POST /api/payments",
+    "GET /api/payments/:userId",
+    "PATCH /api/payments/:id/confirm",
+    "PATCH /api/payments/:id/refund",
+    "POST /api/notifications"
+  ]
+}
