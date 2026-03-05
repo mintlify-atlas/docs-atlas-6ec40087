@@ -1,0 +1,602 @@
+---
+title: 'Email Notifications'
+description: 'Configure email notifications with Nodemailer and Gmail in DevTools Hub API'
+icon: 'envelope'
+---
+
+## Overview
+
+DevTools Hub API includes a notification system built with Nodemailer for sending transactional emails. The system supports payment confirmations, subscription changes, and custom notifications.
+
+## Features
+
+- Transactional email notifications
+- HTML email templates with responsive design
+- Gmail SMTP integration
+- Support for multiple email providers
+- Modular notification architecture
+
+## Email Configuration
+
+### Required Environment Variables
+
+Configure these variables in your `.env` file:
+
+```bash
+MAIL_HOST=smtp.gmail.com
+MAIL_PORT=465
+MAIL_USER=your_email@gmail.com
+MAIL_PASS=your_app_password
+MAIL_FROM="DevToolsHub <your_email@gmail.com>"
+```
+
+See the [Environment Variables guide](/guides/environment-variables#emailsmtp-configuration) for detailed configuration options.
+
+## Gmail Setup
+
+<Steps>
+  <Step title="Enable 2-Factor Authentication">
+    Gmail requires 2FA to use App Passwords.
+    
+    1. Go to your [Google Account](https://myaccount.google.com/)
+    2. Navigate to **Security**
+    3. Enable **2-Step Verification**
+  </Step>
+
+  <Step title="Generate App Password">
+    Create a dedicated app password for the API:
+    
+    1. Visit [App Passwords](https://myaccount.google.com/apppasswords)
+    2. Select **Mail** as the app
+    3. Select **Other** as the device
+    4. Enter "DevToolsHub API" as the name
+    5. Click **Generate**
+    6. Copy the 16-character password (format: `xxxx xxxx xxxx xxxx`)
+  </Step>
+
+  <Step title="Update Environment Variables">
+    Add the app password to your `.env` file:
+    
+    ```bash
+    MAIL_USER=your_email@gmail.com
+    MAIL_PASS=xxxx xxxx xxxx xxxx
+    ```
+    
+    <Warning>
+    Do not use your regular Gmail password. Always use App Passwords.
+    </Warning>
+  </Step>
+
+  <Step title="Test the Configuration">
+    Start your application and test email sending:
+    
+    ```bash
+    npm run start:dev
+    ```
+    
+    Send a test email via the API or check the application logs for connection status.
+  </Step>
+</Steps>
+
+## Email Adapter
+
+The email adapter is located at `src/modules/notifications/infrastructure/adapters/email.adapter.ts`:
+
+```typescript
+import { Injectable, Logger } from '@nestjs/common';
+import * as nodemailer from 'nodemailer';
+
+@Injectable()
+export class EmailAdapter {
+  private readonly logger = new Logger(EmailAdapter.name);
+  private transporter: nodemailer.Transporter;
+
+  constructor() {
+    this.transporter = nodemailer.createTransport({
+      host: process.env.MAIL_HOST,
+      port: Number(process.env.MAIL_PORT),
+      secure: true, // Use SSL/TLS
+      auth: {
+        user: process.env.MAIL_USER,
+        pass: process.env.MAIL_PASS,
+      },
+    });
+  }
+
+  async sendEmail(
+    to: string, 
+    subject: string, 
+    message: string
+  ): Promise<boolean> {
+    try {
+      const from = process.env.MAIL_FROM || process.env.MAIL_USER;
+
+      const html = `
+      <div style="background-color:#f8f9fa;padding:20px;font-family:Arial,sans-serif;">
+        <div style="max-width:600px;margin:auto;background-color:#ffffff;
+                    border-radius:10px;overflow:hidden;
+                    box-shadow:0 0 10px rgba(0,0,0,0.1);">
+          <div style="background-color:#007bff;padding:15px;
+                      color:white;text-align:center;">
+            <h2>💳 Confirmación de Pago - DevToolsHub</h2>
+          </div>
+          <div style="padding:25px;">
+            <p style="font-size:16px;color:#333;">Hola 👋,</p>
+            <p style="font-size:16px;color:#333;">${message}</p>
+            <div style="margin-top:25px;text-align:center;">
+              <a href="https://devtoolshub.com" 
+                 style="background-color:#007bff;color:white;padding:12px 20px;
+                        text-decoration:none;border-radius:5px;font-weight:bold;">
+                Ver tu cuenta
+              </a>
+            </div>
+          </div>
+          <div style="background-color:#f1f1f1;padding:10px;
+                      text-align:center;color:#777;font-size:13px;">
+            DevToolsHub © ${new Date().getFullYear()} — 
+            Automatización inteligente para desarrolladores.
+          </div>
+        </div>
+      </div>
+      `;
+
+      await this.transporter.sendMail({
+        from,
+        to,
+        subject,
+        html,
+      });
+
+      this.logger.log(`📧 Email enviado correctamente a ${to}`);
+      return true;
+    } catch (error) {
+      this.logger.error(`❌ Error enviando email: ${error.message}`);
+      return false;
+    }
+  }
+}
+```
+
+### Key Features
+
+- **Secure Connection**: Uses SSL/TLS on port 465
+- **Error Handling**: Catches and logs email sending errors
+- **HTML Templates**: Responsive email design with inline styles
+- **Logging**: Tracks successful and failed email deliveries
+
+<Note>
+The current implementation uses a fixed HTML template. For production, consider using template engines like Handlebars or Pug.
+</Note>
+
+## Notification Module
+
+The notifications module exports several use cases:
+
+```typescript
+// src/modules/notifications/notifications.module.ts
+import { Module } from '@nestjs/common';
+import { EmailAdapter } from './infrastructure/adapters/email.adapter';
+import { SendEmailUseCase } from './application/use-cases/send-email.use-case';
+import { SendSubscriptionChangeUseCase } from './application/use-cases/send-subscription-change.use-case';
+import { SendPaymentConfirmationUseCase } from './application/use-cases/send-payment-confirmation.use-case';
+import { NotificationController } from './infrastructure/controllers/notification.controller';
+
+@Module({
+  controllers: [NotificationController],
+  providers: [
+    EmailAdapter,
+    SendEmailUseCase,
+    SendSubscriptionChangeUseCase,
+    SendPaymentConfirmationUseCase,
+  ],
+  exports: [
+    SendEmailUseCase,
+    SendSubscriptionChangeUseCase,
+    SendPaymentConfirmationUseCase,
+  ],
+})
+export class NotificationsModule {}
+```
+
+## Use Cases
+
+### Send Custom Email
+
+The basic email sending use case:
+
+```typescript
+// src/modules/notifications/application/use-cases/send-email.use-case.ts
+import { Injectable } from '@nestjs/common';
+import { EmailAdapter } from '../../infrastructure/adapters/email.adapter';
+
+@Injectable()
+export class SendEmailUseCase {
+  constructor(private readonly emailAdapter: EmailAdapter) {}
+
+  execute(to: string, subject: string, message: string): void {
+    this.emailAdapter.sendEmail(to, subject, message);
+  }
+}
+```
+
+### Using in Your Services
+
+Inject the notification use cases into your services:
+
+```typescript
+import { Injectable } from '@nestjs/common';
+import { SendEmailUseCase } from '../notifications/application/use-cases/send-email.use-case';
+
+@Injectable()
+export class UserService {
+  constructor(
+    private readonly sendEmailUseCase: SendEmailUseCase,
+  ) {}
+
+  async createUser(userData: CreateUserDto) {
+    // Create user logic...
+    const user = await this.userRepository.save(userData);
+
+    // Send welcome email
+    this.sendEmailUseCase.execute(
+      user.email,
+      'Welcome to DevToolsHub!',
+      `Hi ${user.name}, welcome to our platform!`
+    );
+
+    return user;
+  }
+}
+```
+
+## Email Templates
+
+### Current Template Structure
+
+The default template includes:
+
+- Responsive container (max-width: 600px)
+- Branded header with logo area
+- Content section with greeting and message
+- Call-to-action button
+- Footer with copyright and branding
+
+### Customizing Templates
+
+Create a template service for reusable email templates:
+
+<CodeGroup>
+```typescript Template Service
+// src/modules/notifications/application/services/email-template.service.ts
+import { Injectable } from '@nestjs/common';
+
+@Injectable()
+export class EmailTemplateService {
+  welcomeEmail(name: string, verificationLink: string): string {
+    return `
+      <div style="max-width:600px;margin:auto;font-family:Arial,sans-serif;">
+        <h1>Welcome, ${name}!</h1>
+        <p>Thank you for joining DevToolsHub.</p>
+        <a href="${verificationLink}" 
+           style="display:inline-block;padding:10px 20px;
+                  background:#007bff;color:white;text-decoration:none;">
+          Verify Email
+        </a>
+      </div>
+    `;
+  }
+
+  paymentConfirmation(userName: string, amount: number, planName: string): string {
+    return `
+      <div style="max-width:600px;margin:auto;font-family:Arial,sans-serif;">
+        <h1>Payment Confirmed</h1>
+        <p>Hi ${userName},</p>
+        <p>Your payment of $${amount} for ${planName} has been processed.</p>
+        <p>Thank you for your subscription!</p>
+      </div>
+    `;
+  }
+
+  subscriptionChange(userName: string, oldPlan: string, newPlan: string): string {
+    return `
+      <div style="max-width:600px;margin:auto;font-family:Arial,sans-serif;">
+        <h1>Subscription Updated</h1>
+        <p>Hi ${userName},</p>
+        <p>Your subscription has been changed from ${oldPlan} to ${newPlan}.</p>
+        <p>Changes will take effect immediately.</p>
+      </div>
+    `;
+  }
+}
+```
+
+```typescript Updated Email Adapter
+import { Injectable, Logger } from '@nestjs/common';
+import * as nodemailer from 'nodemailer';
+
+interface EmailOptions {
+  to: string;
+  subject: string;
+  html?: string;
+  text?: string;
+}
+
+@Injectable()
+export class EmailAdapter {
+  private readonly logger = new Logger(EmailAdapter.name);
+  private transporter: nodemailer.Transporter;
+
+  constructor() {
+    this.transporter = nodemailer.createTransport({
+      host: process.env.MAIL_HOST,
+      port: Number(process.env.MAIL_PORT),
+      secure: true,
+      auth: {
+        user: process.env.MAIL_USER,
+        pass: process.env.MAIL_PASS,
+      },
+    });
+  }
+
+  async sendEmail(options: EmailOptions): Promise<boolean> {
+    try {
+      const from = process.env.MAIL_FROM || process.env.MAIL_USER;
+
+      await this.transporter.sendMail({
+        from,
+        to: options.to,
+        subject: options.subject,
+        html: options.html,
+        text: options.text,
+      });
+
+      this.logger.log(`📧 Email sent to ${options.to}`);
+      return true;
+    } catch (error) {
+      this.logger.error(`❌ Error sending email: ${error.message}`);
+      return false;
+    }
+  }
+}
+```
+</CodeGroup>
+
+## Testing Email Sending
+
+### Manual Testing
+
+Test email functionality through the API:
+
+```bash
+curl -X POST http://localhost:3000/api/notifications/send \
+  -H "Content-Type: application/json" \
+  -d '{
+    "to": "recipient@example.com",
+    "subject": "Test Email",
+    "message": "This is a test email from DevToolsHub API"
+  }'
+```
+
+### Using MailHog for Development
+
+For local development, use MailHog to catch emails without sending them:
+
+<Steps>
+  <Step title="Install MailHog">
+    Add MailHog to your Docker Compose:
+    
+    ```yaml
+    services:
+      mailhog:
+        image: mailhog/mailhog
+        container_name: devtools_mailhog
+        ports:
+          - "1025:1025"  # SMTP port
+          - "8025:8025"  # Web UI
+    ```
+  </Step>
+
+  <Step title="Update Development Configuration">
+    ```bash
+    # .env.development
+    MAIL_HOST=localhost
+    MAIL_PORT=1025
+    MAIL_USER=test@example.com
+    MAIL_PASS=anything
+    ```
+  </Step>
+
+  <Step title="View Emails">
+    Access the MailHog web interface at http://localhost:8025 to view all sent emails.
+  </Step>
+</Steps>
+
+## Alternative Email Providers
+
+### SendGrid
+
+```bash
+MAIL_HOST=smtp.sendgrid.net
+MAIL_PORT=465
+MAIL_USER=apikey
+MAIL_PASS=your_sendgrid_api_key
+MAIL_FROM="DevToolsHub <noreply@yourdomain.com>"
+```
+
+### Amazon SES
+
+```bash
+MAIL_HOST=email-smtp.us-east-1.amazonaws.com
+MAIL_PORT=465
+MAIL_USER=your_smtp_username
+MAIL_PASS=your_smtp_password
+MAIL_FROM="DevToolsHub <noreply@yourdomain.com>"
+```
+
+### Mailgun
+
+```bash
+MAIL_HOST=smtp.mailgun.org
+MAIL_PORT=465
+MAIL_USER=postmaster@your-domain.mailgun.org
+MAIL_PASS=your_mailgun_smtp_password
+MAIL_FROM="DevToolsHub <noreply@yourdomain.com>"
+```
+
+### Microsoft Outlook/Office 365
+
+```bash
+MAIL_HOST=smtp-mail.outlook.com
+MAIL_PORT=587
+MAIL_USER=your_email@outlook.com
+MAIL_PASS=your_password
+MAIL_FROM="DevToolsHub <your_email@outlook.com>"
+```
+
+<Info>
+Outlook uses port 587 with STARTTLS. Update the adapter to use `secure: false` for this configuration.
+</Info>
+
+## Production Best Practices
+
+<Warning>
+**Important Considerations:**
+</Warning>
+
+1. **Use a Dedicated Email Service**
+   - Gmail has sending limits (500 emails/day for free accounts)
+   - Use SendGrid, Mailgun, or Amazon SES for production
+   - These services provide better deliverability and analytics
+
+2. **Implement Email Queues**
+   ```typescript
+   // Use Bull for email queuing
+   import { InjectQueue } from '@nestjs/bull';
+   import { Queue } from 'bull';
+
+   @Injectable()
+   export class NotificationService {
+     constructor(
+       @InjectQueue('email') private emailQueue: Queue,
+     ) {}
+
+     async sendEmail(to: string, subject: string, html: string) {
+       await this.emailQueue.add('send', {
+         to,
+         subject,
+         html,
+       });
+     }
+   }
+   ```
+
+3. **Monitor Email Deliverability**
+   - Track bounce rates
+   - Monitor spam complaints
+   - Implement SPF, DKIM, and DMARC records
+
+4. **Handle Failures Gracefully**
+   ```typescript
+   async sendEmailWithRetry(options: EmailOptions, retries = 3): Promise<boolean> {
+     for (let i = 0; i < retries; i++) {
+       try {
+         return await this.sendEmail(options);
+       } catch (error) {
+         if (i === retries - 1) throw error;
+         await this.delay(1000 * (i + 1));
+       }
+     }
+     return false;
+   }
+   ```
+
+5. **Implement Unsubscribe**
+   - Add unsubscribe links to all marketing emails
+   - Honor unsubscribe requests immediately
+   - Keep an unsubscribe list
+
+6. **Rate Limiting**
+   - Respect provider sending limits
+   - Implement exponential backoff
+   - Use queue systems to batch emails
+
+## Troubleshooting
+
+<Accordion title="Authentication Failed (Gmail)">
+**Error:** `535 Authentication failed`
+
+**Solutions:**
+1. Verify you're using an App Password, not your regular password
+2. Ensure 2-Step Verification is enabled on your Google account
+3. Check that the App Password is copied correctly (remove spaces)
+4. Try generating a new App Password
+</Accordion>
+
+<Accordion title="Connection Timeout">
+**Error:** `Connection timeout`
+
+**Solutions:**
+1. Verify SMTP host and port are correct
+2. Check firewall settings (port 465 or 587 must be open)
+3. Try alternative ports:
+   - 465 for SSL/TLS
+   - 587 for STARTTLS
+4. Test connection:
+   ```bash
+   telnet smtp.gmail.com 465
+   ```
+</Accordion>
+
+<Accordion title="Emails Going to Spam">
+**Problem:** Sent emails land in spam folder
+
+**Solutions:**
+1. Configure SPF records for your domain
+2. Set up DKIM signing
+3. Implement DMARC policy
+4. Avoid spam trigger words in subject/content
+5. Use a reputable email service provider
+6. Warm up your sending domain gradually
+</Accordion>
+
+<Accordion title="TLS/SSL Errors">
+**Error:** `self signed certificate` or SSL handshake errors
+
+**Solution:**
+For development only, you can disable certificate validation:
+```typescript
+this.transporter = nodemailer.createTransport({
+  host: process.env.MAIL_HOST,
+  port: Number(process.env.MAIL_PORT),
+  secure: true,
+  auth: {
+    user: process.env.MAIL_USER,
+    pass: process.env.MAIL_PASS,
+  },
+  tls: {
+    rejectUnauthorized: false, // Only for development!
+  },
+});
+```
+
+<Warning>
+Never use `rejectUnauthorized: false` in production.
+</Warning>
+</Accordion>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Environment Variables" icon="gear" href="/guides/environment-variables">
+    Complete guide to email configuration variables
+  </Card>
+  <Card title="Notification API" icon="bell" href="/api/notifications/send-email">
+    Explore the notification endpoints
+  </Card>
+  <Card title="Payment Confirmation" icon="check" href="/api/payments/confirm">
+    Learn about payment confirmation emails
+  </Card>
+  <Card title="Docker Deployment" icon="docker" href="/guides/docker-deployment">
+    Deploy with email configuration
+  </Card>
+</CardGroup>

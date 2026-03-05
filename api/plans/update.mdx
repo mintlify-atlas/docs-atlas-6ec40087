@@ -1,0 +1,140 @@
+---
+title: 'Update Plan'
+api: 'PATCH /api/plans/:id'
+description: 'Update an existing plan'
+---
+
+This endpoint updates an existing plan with new data. Only the fields you provide will be updated.
+
+## Request
+
+### Path Parameters
+
+<ParamField path="id" type="string" required>
+  The unique identifier of the plan to update
+</ParamField>
+
+### Headers
+
+<ParamField header="Content-Type" type="string" default="application/json" required>
+  The content type of the request
+</ParamField>
+
+### Body Parameters
+
+<ParamField body="name" type="string">
+  The name of the plan. Must be unique across all plans if provided.
+</ParamField>
+
+<ParamField body="description" type="string">
+  A detailed description of what the plan offers
+</ParamField>
+
+<ParamField body="price" type="number">
+  The price of the plan. Supports up to 2 decimal places (e.g., 9.99)
+</ParamField>
+
+<ParamField body="isActive" type="boolean">
+  Whether the plan should be active or inactive
+</ParamField>
+
+<Note>
+  All body parameters are optional. Only include the fields you want to update.
+</Note>
+
+## Response
+
+Returns the updated plan object.
+
+<ResponseField name="id" type="number" required>
+  Unique identifier of the plan
+</ResponseField>
+
+<ResponseField name="name" type="string" required>
+  The updated name of the plan
+</ResponseField>
+
+<ResponseField name="description" type="string">
+  The updated plan description
+</ResponseField>
+
+<ResponseField name="price" type="number" required>
+  The updated price of the plan
+</ResponseField>
+
+<ResponseField name="isActive" type="boolean">
+  Whether the plan is active
+</ResponseField>
+
+<ResponseField name="createdAt" type="string" required>
+  Original creation timestamp (ISO 8601 format)
+</ResponseField>
+
+<ResponseField name="updatedAt" type="string" required>
+  Timestamp when the plan was last updated (ISO 8601 format)
+</ResponseField>
+
+## Example
+
+<CodeGroup>
+
+```bash cURL
+curl --request PATCH \
+  --url http://localhost:3000/api/plans/2 \
+  --header 'Content-Type: application/json' \
+  --data '{
+    "price": 39.99,
+    "description": "Updated: Enhanced features for professionals"
+  }'
+```
+
+```javascript JavaScript
+fetch('http://localhost:3000/api/plans/2', {
+  method: 'PATCH',
+  headers: {
+    'Content-Type': 'application/json'
+  },
+  body: JSON.stringify({
+    price: 39.99,
+    description: 'Updated: Enhanced features for professionals'
+  })
+})
+  .then(response => response.json())
+  .then(data => console.log(data));
+```
+
+```python Python
+import requests
+
+data = {
+    "price": 39.99,
+    "description": "Updated: Enhanced features for professionals"
+}
+
+response = requests.patch(
+    'http://localhost:3000/api/plans/2',
+    json=data
+)
+plan = response.json()
+print(plan)
+```
+
+</CodeGroup>
+
+### Response Example
+
+```json
+{
+  "id": 2,
+  "name": "Pro Plan",
+  "description": "Updated: Enhanced features for professionals",
+  "price": 39.99,
+  "isActive": true,
+  "createdAt": "2026-01-15T11:00:00.000Z",
+  "updatedAt": "2026-03-05T09:15:00.000Z"
+}
+```
+
+<Note>
+  If the plan with the specified ID does not exist, the request will fail with a 404 Not Found error.
+</Note>

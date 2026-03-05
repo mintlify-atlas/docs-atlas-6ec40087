@@ -1,0 +1,242 @@
+---
+title: 'Login User'
+api: 'POST /api/auth/login'
+description: 'Authenticate a user with email and password'
+---
+
+## Overview
+
+This endpoint authenticates users using their email and password credentials. Upon successful authentication, it returns a JWT token that can be used for subsequent authenticated requests.
+
+<Warning>
+  The current implementation returns a placeholder token (`FAKE_JWT_TOKEN`). In production, this should be replaced with a proper JWT token generation mechanism.
+</Warning>
+
+## Request Body
+
+<ParamField body="email" type="string" required>
+  Valid email address associated with the user account.
+  
+  **Validation:**
+  - Must be a valid email format
+  - Error message: "El email debe ser una dirección válida"
+  
+  **Example:** `"usuario@ejemplo.com"`
+</ParamField>
+
+<ParamField body="password" type="string" required>
+  User's password for authentication.
+  
+  **Validation:**
+  - Cannot be empty
+  - Minimum length: 6 characters
+  - Error messages:
+    - "La contraseña es requerida"
+    - "La contraseña debe tener al menos 6 caracteres"
+  
+  **Example:** `"MiContraseñaSegura123"`
+</ParamField>
+
+## Response
+
+<ResponseField name="success" type="boolean" required>
+  Indicates whether the login was successful.
+</ResponseField>
+
+<ResponseField name="message" type="string" required>
+  Human-readable message describing the result.
+  
+  **Example:** `"Login successful"`
+</ResponseField>
+
+<ResponseField name="data" type="object">
+  Contains the authentication token.
+  
+  <Expandable title="data properties">
+    <ResponseField name="token" type="string">
+      JWT token for authenticating subsequent API requests.
+      
+      <Note>
+        Store this token securely and include it in the `Authorization` header as `Bearer {token}` for protected endpoints.
+      </Note>
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+## Examples
+
+<CodeGroup>
+
+```bash cURL
+curl -X POST https://api.devtoolshub.com/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "usuario@ejemplo.com",
+    "password": "MiContraseñaSegura123"
+  }'
+```
+
+```javascript JavaScript
+const response = await fetch('https://api.devtoolshub.com/api/auth/login', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+  },
+  body: JSON.stringify({
+    email: 'usuario@ejemplo.com',
+    password: 'MiContraseñaSegura123'
+  })
+});
+
+const data = await response.json();
+console.log(data);
+
+// Store the token for future requests
+const { token } = data.data;
+localStorage.setItem('authToken', token);
+```
+
+```python Python
+import requests
+
+url = "https://api.devtoolshub.com/api/auth/login"
+payload = {
+    "email": "usuario@ejemplo.com",
+    "password": "MiContraseñaSegura123"
+}
+
+response = requests.post(url, json=payload)
+data = response.json()
+
+# Store the token for future requests
+token = data['data']['token']
+print(f"Token: {token}")
+```
+
+</CodeGroup>
+
+### Success Response (200)
+
+```json
+{
+  "success": true,
+  "message": "Login successful",
+  "data": {
+    "token": "FAKE_JWT_TOKEN"
+  }
+}
+```
+
+## Error Responses
+
+<Expandable title="401 Unauthorized - Invalid Credentials">
+
+**Scenario:** Either the email doesn't exist or the password doesn't match.
+
+**Source:** `login.use-case.ts:16` and `login.use-case.ts:19`
+
+<Note>
+  For security reasons, the API returns the same error message whether the email doesn't exist or the password is incorrect. This prevents attackers from enumerating valid email addresses.
+</Note>
+
+```json
+{
+  "statusCode": 401,
+  "message": "Invalid credentials",
+  "error": "Unauthorized"
+}
+```
+
+</Expandable>
+
+<Expandable title="400 Bad Request - Validation Errors">
+
+**Scenario:** Request body fails validation rules.
+
+### Invalid Email Format
+```json
+{
+  "statusCode": 400,
+  "message": ["El email debe ser una dirección válida"],
+  "error": "Bad Request"
+}
+```
+
+### Missing Password
+```json
+{
+  "statusCode": 400,
+  "message": ["La contraseña es requerida"],
+  "error": "Bad Request"
+}
+```
+
+### Password Too Short
+```json
+{
+  "statusCode": 400,
+  "message": ["La contraseña debe tener al menos 6 caracteres"],
+  "error": "Bad Request"
+}
+```
+
+### Multiple Validation Errors
+```json
+{
+  "statusCode": 400,
+  "message": [
+    "El email debe ser una dirección válida",
+    "La contraseña es requerida"
+  ],
+  "error": "Bad Request"
+}
+```
+
+</Expandable>
+
+## Implementation Details
+
+### Authentication Process
+
+1. **Validation**: Request body is validated against class-validator decorators
+2. **User Lookup**: System searches for a user with the provided email
+3. **Password Verification**: Password is compared against the stored bcrypt hash
+4. **Token Generation**: JWT token is generated for the authenticated user
+5. **Response**: Returns the authentication token upon success
+
+### Security Considerations
+
+<Warning>
+  **Important Security Notes:**
+  - Passwords are compared using `bcrypt.compare()` to prevent timing attacks
+  - The same error message is returned for both invalid email and invalid password to prevent user enumeration
+  - Implement rate limiting on this endpoint to prevent brute force attacks
+  - Consider adding account lockout after multiple failed attempts
+</Warning>
+
+### Using the Authentication Token
+
+Once you receive the token, include it in the `Authorization` header for protected endpoints:
+
+```bash
+curl -X GET https://api.devtoolshub.com/api/protected-resource \
+  -H "Authorization: Bearer FAKE_JWT_TOKEN"
+```
+
+### Related Files
+
+- Controller: `src/modules/auth/infrastructure/controllers/auth.controller.ts:20-24`
+- DTO: `src/modules/auth/presentation/dto/login.dto.ts`
+- Use Case: `src/modules/auth/application/use-cases/login.use-case.ts`
+- Response DTO: `src/modules/auth/presentation/dto/response.dto.ts`
+
+## Next Steps
+
+<Note>
+  After successful login, you can use the returned token to:
+  - Access protected endpoints
+  - Retrieve user profile information
+  - Perform authenticated operations
+  
+  Remember to handle token expiration and refresh mechanisms in your client application.
+</Note>

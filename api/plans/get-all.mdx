@@ -1,0 +1,109 @@
+---
+title: 'Get All Plans'
+api: 'GET /api/plans/all'
+description: 'Retrieve a list of all plans'
+---
+
+This endpoint retrieves all plans from the database, including both active and inactive plans.
+
+## Request
+
+No parameters required.
+
+### Headers
+
+<ParamField header="Content-Type" type="string" default="application/json">
+  The content type of the request
+</ParamField>
+
+## Response
+
+Returns an array of plan objects.
+
+<ResponseField name="id" type="number" required>
+  Unique identifier for the plan
+</ResponseField>
+
+<ResponseField name="name" type="string" required>
+  The name of the plan (must be unique)
+</ResponseField>
+
+<ResponseField name="description" type="string">
+  Detailed description of the plan
+</ResponseField>
+
+<ResponseField name="price" type="number" required>
+  The price of the plan (decimal with 2 decimal places)
+</ResponseField>
+
+<ResponseField name="isActive" type="boolean" default="true">
+  Whether the plan is currently active
+</ResponseField>
+
+<ResponseField name="createdAt" type="string" required>
+  Timestamp when the plan was created (ISO 8601 format)
+</ResponseField>
+
+<ResponseField name="updatedAt" type="string" required>
+  Timestamp when the plan was last updated (ISO 8601 format)
+</ResponseField>
+
+## Example
+
+<CodeGroup>
+
+```bash cURL
+curl --request GET \
+  --url http://localhost:3000/api/plans/all \
+  --header 'Content-Type: application/json'
+```
+
+```javascript JavaScript
+fetch('http://localhost:3000/api/plans/all', {
+  method: 'GET',
+  headers: {
+    'Content-Type': 'application/json'
+  }
+})
+  .then(response => response.json())
+  .then(data => console.log(data));
+```
+
+```python Python
+import requests
+
+response = requests.get('http://localhost:3000/api/plans/all')
+plans = response.json()
+print(plans)
+```
+
+</CodeGroup>
+
+### Response Example
+
+```json
+[
+  {
+    "id": 1,
+    "name": "Basic Plan",
+    "description": "Perfect for getting started",
+    "price": 9.99,
+    "isActive": true,
+    "createdAt": "2026-01-15T10:30:00.000Z",
+    "updatedAt": "2026-01-15T10:30:00.000Z"
+  },
+  {
+    "id": 2,
+    "name": "Pro Plan",
+    "description": "For professional developers",
+    "price": 29.99,
+    "isActive": true,
+    "createdAt": "2026-01-15T11:00:00.000Z",
+    "updatedAt": "2026-01-20T14:30:00.000Z"
+  }
+]
+```
+
+<Note>
+  This endpoint returns all plans regardless of their `isActive` status. Filter client-side if you only need active plans.
+</Note>

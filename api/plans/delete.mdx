@@ -1,0 +1,88 @@
+---
+title: 'Delete Plan'
+api: 'DELETE /api/plans/:id'
+description: 'Delete an existing plan'
+---
+
+This endpoint permanently deletes a plan from the database.
+
+## Request
+
+### Path Parameters
+
+<ParamField path="id" type="string" required>
+  The unique identifier of the plan to delete
+</ParamField>
+
+### Headers
+
+<ParamField header="Content-Type" type="string" default="application/json">
+  The content type of the request
+</ParamField>
+
+## Response
+
+Returns no content on successful deletion (HTTP 204 or empty response).
+
+<Note>
+  This operation is permanent and cannot be undone. Consider implementing soft deletes by updating the `isActive` field instead.
+</Note>
+
+## Example
+
+<CodeGroup>
+
+```bash cURL
+curl --request DELETE \
+  --url http://localhost:3000/api/plans/3 \
+  --header 'Content-Type: application/json'
+```
+
+```javascript JavaScript
+fetch('http://localhost:3000/api/plans/3', {
+  method: 'DELETE',
+  headers: {
+    'Content-Type': 'application/json'
+  }
+})
+  .then(response => {
+    if (response.ok) {
+      console.log('Plan deleted successfully');
+    }
+  });
+```
+
+```python Python
+import requests
+
+response = requests.delete('http://localhost:3000/api/plans/3')
+
+if response.status_code == 200:
+    print('Plan deleted successfully')
+```
+
+</CodeGroup>
+
+### Response Example
+
+Successful deletion returns an empty response or HTTP 204 No Content status.
+
+```json
+// No response body
+```
+
+## Error Responses
+
+If the plan does not exist:
+
+```json
+{
+  "statusCode": 404,
+  "message": "Plan not found",
+  "error": "Not Found"
+}
+```
+
+<Note>
+  **Alternative Approach:** Instead of hard deleting, consider setting `isActive` to `false` using the [Update Plan](/api/plans/update) endpoint to preserve historical data.
+</Note>

@@ -1,0 +1,235 @@
+---
+title: 'Send Email Notification'
+api: 'POST /api/notifications'
+description: 'Send an email notification to a recipient with a custom subject and message'
+---
+
+## Overview
+
+This endpoint allows you to send email notifications through the DevTools Hub API. The email is sent using a pre-configured SMTP server with a branded HTML template that includes the DevTools Hub design.
+
+<Note>
+  This endpoint requires proper email configuration via environment variables. See the [Configuration](#configuration) section below.
+</Note>
+
+## Request
+
+<ParamField body="recipientEmail" type="string" required>
+  The email address of the recipient. Must be a valid email format.
+  
+  **Example:** `recipient@example.com`
+</ParamField>
+
+<ParamField body="subject" type="string" required>
+  The subject line of the email notification.
+  
+  **Example:** `Successful Payment Confirmation`
+</ParamField>
+
+<ParamField body="message" type="string" required>
+  The main content/message of the email notification. This will be embedded in a styled HTML template.
+  
+  **Example:** `Your payment has been processed successfully. Thank you for your purchase.`
+</ParamField>
+
+## Response
+
+<ResponseField name="message" type="string">
+  A confirmation message indicating the notification was sent successfully.
+  
+  **Value:** `Notification sent successfully`
+</ResponseField>
+
+## Request Examples
+
+<CodeGroup>
+
+```bash cURL
+curl -X POST https://api.devtoolshub.com/api/notifications \
+  -H "Content-Type: application/json" \
+  -d '{
+    "recipientEmail": "user@example.com",
+    "subject": "Payment Confirmation",
+    "message": "Your payment has been processed successfully. Thank you for your purchase."
+  }'
+```
+
+```javascript JavaScript
+const response = await fetch('https://api.devtoolshub.com/api/notifications', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+  },
+  body: JSON.stringify({
+    recipientEmail: 'user@example.com',
+    subject: 'Payment Confirmation',
+    message: 'Your payment has been processed successfully. Thank you for your purchase.'
+  })
+});
+
+const data = await response.json();
+console.log(data);
+```
+
+```python Python
+import requests
+
+url = "https://api.devtoolshub.com/api/notifications"
+payload = {
+    "recipientEmail": "user@example.com",
+    "subject": "Payment Confirmation",
+    "message": "Your payment has been processed successfully. Thank you for your purchase."
+}
+
+response = requests.post(url, json=payload)
+print(response.json())
+```
+
+```typescript TypeScript
+interface SendNotificationDto {
+  recipientEmail: string;
+  subject: string;
+  message: string;
+}
+
+const notification: SendNotificationDto = {
+  recipientEmail: 'user@example.com',
+  subject: 'Payment Confirmation',
+  message: 'Your payment has been processed successfully. Thank you for your purchase.'
+};
+
+const response = await fetch('https://api.devtoolshub.com/api/notifications', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+  },
+  body: JSON.stringify(notification)
+});
+
+const data = await response.json();
+```
+
+</CodeGroup>
+
+## Response Example
+
+```json
+{
+  "message": "Notification sent successfully"
+}
+```
+
+## Validation Rules
+
+The API validates the request body against the following rules:
+
+- **recipientEmail**: Must be a valid email address format
+- **subject**: Must be a non-empty string
+- **message**: Must be a non-empty string
+
+### Error Response Examples
+
+**Invalid Email Format:**
+```json
+{
+  "statusCode": 400,
+  "message": ["El email del destinatario debe ser válido"],
+  "error": "Bad Request"
+}
+```
+
+**Missing Required Fields:**
+```json
+{
+  "statusCode": 400,
+  "message": [
+    "El asunto es requerido",
+    "El mensaje es requerido"
+  ],
+  "error": "Bad Request"
+}
+```
+
+## Email Template
+
+The email is sent using a branded HTML template that includes:
+
+- DevTools Hub header with blue background
+- Professional formatting with centered content
+- The custom message content embedded in the body
+- A call-to-action button linking to `https://devtoolshub.com`
+- Footer with copyright information and current year
+
+<Info>
+  The email template is automatically applied to all notifications. You only need to provide the message content, and it will be wrapped in the styled template.
+</Info>
+
+## Configuration
+
+The email notification system requires the following environment variables to be configured:
+
+<ParamField path="MAIL_HOST" type="string" required>
+  The SMTP server hostname.
+  
+  **Example:** `smtp.gmail.com`
+</ParamField>
+
+<ParamField path="MAIL_PORT" type="number" required>
+  The SMTP server port. Typically 465 for secure connections.
+  
+  **Example:** `465`
+</ParamField>
+
+<ParamField path="MAIL_USER" type="string" required>
+  The email account username for SMTP authentication.
+  
+  **Example:** `notifications@devtoolshub.com`
+</ParamField>
+
+<ParamField path="MAIL_PASS" type="string" required>
+  The email account password for SMTP authentication.
+  
+  **Example:** `your-app-password`
+</ParamField>
+
+<ParamField path="MAIL_FROM" type="string">
+  The sender email address. If not provided, defaults to `MAIL_USER`.
+  
+  **Example:** `DevTools Hub <noreply@devtoolshub.com>`
+</ParamField>
+
+### Configuration Example
+
+```bash .env
+MAIL_HOST=smtp.gmail.com
+MAIL_PORT=465
+MAIL_USER=notifications@devtoolshub.com
+MAIL_PASS=your-app-specific-password
+MAIL_FROM="DevTools Hub <noreply@devtoolshub.com>"
+```
+
+<Note>
+  For Gmail, you'll need to use an [App Password](https://support.google.com/accounts/answer/185833) instead of your regular password. Enable 2-factor authentication and generate an app-specific password for the `MAIL_PASS` variable.
+</Note>
+
+## Implementation Details
+
+The notification system is built using:
+
+- **NestJS** framework for the REST API controller
+- **Nodemailer** library for email delivery
+- **class-validator** for request validation
+- Secure SMTP connection (TLS/SSL)
+
+The implementation follows a clean architecture pattern with:
+- Controller layer: `notification.controller.ts:10`
+- Use case layer: `send-email.use-case.ts:9`
+- Infrastructure layer: `email.adapter.ts:22`
+
+## Best Practices
+
+1. **Validate Email Addresses**: Always ensure recipient email addresses are valid before sending
+2. **Handle Errors**: The endpoint logs errors but returns success immediately (fire-and-forget pattern)
+3. **Rate Limiting**: Consider implementing rate limiting to prevent email spam
+4. **Async Processing**: For production use, consider queuing emails for better performance
+5. **Monitoring**: Check application logs for email delivery status and errors

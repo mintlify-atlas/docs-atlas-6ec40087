@@ -1,0 +1,568 @@
+---
+title: 'Docker Deployment'
+description: 'Deploy DevTools Hub API using Docker and Docker Compose'
+icon: 'docker'
+---
+
+## Overview
+
+DevTools Hub API includes a production-ready Docker Compose configuration that sets up the NestJS application, PostgreSQL database, and pgAdmin for database management.
+
+## Prerequisites
+
+Before you begin, ensure you have the following installed:
+
+- Docker (version 20.10 or higher)
+- Docker Compose (version 2.0 or higher)
+- Git (for cloning the repository)
+
+<Info>
+You can verify your Docker installation by running:
+```bash
+docker --version
+docker-compose --version
+```
+</Info>
+
+## Docker Compose Configuration
+
+The project includes a `docker-compose.yml` file that orchestrates multiple services:
+
+```yaml
+version: "3.8"
+services:
+  postgres:
+    image: postgres:15
+    container_name: devtools_postgres
+    restart: always
+    environment:
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASS}
+      POSTGRES_DB: ${DB_NAME}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  pgadmin:
+    image: dpage/pgadmin4
+    container_name: devtools_pgadmin
+    restart: always
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@devtools.com
+      PGADMIN_DEFAULT_PASSWORD: admin123
+    ports:
+      - "5050:80"
+    depends_on:
+      - postgres
+
+volumes:
+  postgres_data:
+```
+
+## Services Overview
+
+<CardGroup cols={2}>
+  <Card title="PostgreSQL" icon="database">
+    Production-grade PostgreSQL 15 database with persistent storage
+  </Card>
+  <Card title="pgAdmin" icon="table">
+    Web-based database management interface accessible at port 5050
+  </Card>
+</CardGroup>
+
+### PostgreSQL Service
+
+- **Image**: `postgres:15`
+- **Container Name**: `devtools_postgres`
+- **Port**: 5432 (mapped to host)
+- **Data Persistence**: Uses named volume `postgres_data`
+- **Auto-restart**: Enabled
+
+### pgAdmin Service
+
+- **Image**: `dpage/pgadmin4`
+- **Container Name**: `devtools_pgadmin`
+- **Port**: 5050 (mapped to host port 80)
+- **Default Credentials**:
+  - Email: `admin@devtools.com`
+  - Password: `admin123`
+
+<Warning>
+Change the default pgAdmin credentials in production by modifying the environment variables in `docker-compose.yml`.
+</Warning>
+
+## Quick Start
+
+<Steps>
+  <Step title="Clone the Repository">
+    ```bash
+    git clone <repository-url>
+    cd devtools-hub-api
+    ```
+  </Step>
+
+  <Step title="Configure Environment Variables">
+    Create a `.env` file in the project root:
+    
+    ```bash
+    cp .env.example .env
+    ```
+    
+    Edit the `.env` file with your configuration:
+    
+    ```bash
+    # Database Configuration
+    DB_HOST=postgres
+    DB_PORT=5432
+    DB_USER=postgres
+    DB_PASS=your_secure_password
+    DB_NAME=db_hub
+
+    # Mail Configuration
+    MAIL_HOST=smtp.gmail.com
+    MAIL_PORT=465
+    MAIL_USER=your_email@gmail.com
+    MAIL_PASS=your_app_password
+    MAIL_FROM="DevToolsHub <your_email@gmail.com>"
+
+    # JWT Configuration
+    JWT_SECRET=your_jwt_secret_key_here
+    ```
+  </Step>
+
+  <Step title="Start Services">
+    Launch all services with Docker Compose:
+    
+    ```bash
+    docker-compose up -d
+    ```
+    
+    The `-d` flag runs containers in detached mode (background).
+  </Step>
+
+  <Step title="Verify Services">
+    Check that all containers are running:
+    
+    ```bash
+    docker-compose ps
+    ```
+    
+    You should see both `devtools_postgres` and `devtools_pgadmin` in the "Up" state.
+  </Step>
+</Steps>
+
+<Note>
+The API itself runs directly on the host machine. To run the API in Docker, you'll need to create a Dockerfile for the NestJS application.
+</Note>
+
+## Running the Application
+
+Once the database is running in Docker, start the NestJS application:
+
+<CodeGroup>
+```bash Development
+npm install
+npm run start:dev
+```
+
+```bash Production
+npm install
+npm run build
+npm run start:prod
+```
+</CodeGroup>
+
+The API will be available at:
+- **API**: http://localhost:3000/api
+- **Swagger Docs**: http://localhost:3000/api/docs
+- **pgAdmin**: http://localhost:5050
+
+## Creating a Dockerfile for the API
+
+To containerize the NestJS application, create a `Dockerfile` in the project root:
+
+```dockerfile
+# Build stage
+FROM node:18-alpine AS builder
+
+WORKDIR /app
+
+# Copy package files
+COPY package*.json ./
+
+# Install dependencies
+RUN npm ci
+
+# Copy source code
+COPY . .
+
+# Build the application
+RUN npm run build
+
+# Production stage
+FROM node:18-alpine
+
+WORKDIR /app
+
+# Copy package files
+COPY package*.json ./
+
+# Install only production dependencies
+RUN npm ci --only=production
+
+# Copy built application from builder stage
+COPY --from=builder /app/dist ./dist
+
+# Expose the application port
+EXPOSE 3000
+
+# Start the application
+CMD ["node", "dist/main"]
+```
+
+### Updated Docker Compose with API Service
+
+Update `docker-compose.yml` to include the API service:
+
+```yaml
+version: "3.8"
+services:
+  postgres:
+    image: postgres:15
+    container_name: devtools_postgres
+    restart: always
+    environment:
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASS}
+      POSTGRES_DB: ${DB_NAME}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - devtools-network
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: devtools_api
+    restart: always
+    ports:
+      - "3000:3000"
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: ${DB_USER}
+      DB_PASS: ${DB_PASS}
+      DB_NAME: ${DB_NAME}
+      MAIL_HOST: ${MAIL_HOST}
+      MAIL_PORT: ${MAIL_PORT}
+      MAIL_USER: ${MAIL_USER}
+      MAIL_PASS: ${MAIL_PASS}
+      MAIL_FROM: ${MAIL_FROM}
+      JWT_SECRET: ${JWT_SECRET}
+    depends_on:
+      - postgres
+    networks:
+      - devtools-network
+
+  pgadmin:
+    image: dpage/pgadmin4
+    container_name: devtools_pgadmin
+    restart: always
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@devtools.com
+      PGADMIN_DEFAULT_PASSWORD: admin123
+    ports:
+      - "5050:80"
+    depends_on:
+      - postgres
+    networks:
+      - devtools-network
+
+volumes:
+  postgres_data:
+
+networks:
+  devtools-network:
+    driver: bridge
+```
+
+## Docker Commands Reference
+
+<Accordion title="Start Services">
+```bash
+# Start all services in background
+docker-compose up -d
+
+# Start and view logs
+docker-compose up
+
+# Start specific service
+docker-compose up -d postgres
+```
+</Accordion>
+
+<Accordion title="Stop Services">
+```bash
+# Stop all services
+docker-compose stop
+
+# Stop specific service
+docker-compose stop postgres
+
+# Stop and remove containers
+docker-compose down
+
+# Stop and remove containers, volumes, and images
+docker-compose down -v --rmi all
+```
+</Accordion>
+
+<Accordion title="View Logs">
+```bash
+# View all logs
+docker-compose logs
+
+# Follow logs in real-time
+docker-compose logs -f
+
+# View logs for specific service
+docker-compose logs postgres
+
+# Follow logs for specific service
+docker-compose logs -f api
+```
+</Accordion>
+
+<Accordion title="Execute Commands in Containers">
+```bash
+# Access PostgreSQL CLI
+docker-compose exec postgres psql -U postgres -d db_hub
+
+# Access container shell
+docker-compose exec postgres sh
+
+# Run database migrations (if API is containerized)
+docker-compose exec api npm run migration:run
+```
+</Accordion>
+
+<Accordion title="Rebuild Services">
+```bash
+# Rebuild all services
+docker-compose build
+
+# Rebuild specific service
+docker-compose build api
+
+# Rebuild without cache
+docker-compose build --no-cache
+
+# Rebuild and restart
+docker-compose up -d --build
+```
+</Accordion>
+
+## Database Management with pgAdmin
+
+<Steps>
+  <Step title="Access pgAdmin">
+    Open your browser and navigate to http://localhost:5050
+    
+    Login with the default credentials:
+    - Email: `admin@devtools.com`
+    - Password: `admin123`
+  </Step>
+
+  <Step title="Add Server Connection">
+    1. Right-click on "Servers" in the left sidebar
+    2. Select "Create" > "Server"
+    3. In the "General" tab, enter a name (e.g., "DevTools DB")
+  </Step>
+
+  <Step title="Configure Connection">
+    In the "Connection" tab, enter:
+    - Host: `postgres` (container name)
+    - Port: `5432`
+    - Maintenance database: `db_hub`
+    - Username: Your `DB_USER` from `.env`
+    - Password: Your `DB_PASS` from `.env`
+    
+    Click "Save"
+  </Step>
+
+  <Step title="Explore Database">
+    You can now browse tables, run queries, and manage your database through the pgAdmin interface.
+  </Step>
+</Steps>
+
+## Data Persistence
+
+The PostgreSQL data is stored in a Docker named volume, ensuring data persists across container restarts:
+
+```yaml
+volumes:
+  postgres_data:
+```
+
+### Backing Up Data
+
+<CodeGroup>
+```bash Backup Database
+# Create a backup
+docker-compose exec postgres pg_dump -U postgres db_hub > backup.sql
+
+# Backup with timestamp
+docker-compose exec postgres pg_dump -U postgres db_hub > backup_$(date +%Y%m%d_%H%M%S).sql
+```
+
+```bash Restore Database
+# Restore from backup
+docker-compose exec -T postgres psql -U postgres db_hub < backup.sql
+```
+
+```bash Export Volume
+# Backup volume data
+docker run --rm \
+  -v devtools_postgres_data:/data \
+  -v $(pwd):/backup \
+  alpine tar czf /backup/postgres_data_backup.tar.gz -C /data .
+```
+</CodeGroup>
+
+## Production Considerations
+
+<Warning>
+**Security Checklist:**
+- Change all default passwords (database, pgAdmin)
+- Use strong, randomly generated passwords
+- Don't expose unnecessary ports to the public
+- Use Docker secrets for sensitive data
+- Run containers as non-root users
+- Keep Docker images updated
+</Warning>
+
+### Environment-Specific Configuration
+
+<CodeGroup>
+```yaml Development
+# docker-compose.dev.yml
+version: "3.8"
+services:
+  postgres:
+    ports:
+      - "5432:5432"  # Exposed for local development
+  pgadmin:
+    ports:
+      - "5050:80"  # Accessible for debugging
+```
+
+```yaml Production
+# docker-compose.prod.yml
+version: "3.8"
+services:
+  postgres:
+    ports:
+      - "127.0.0.1:5432:5432"  # Only accessible from localhost
+  pgadmin:
+    # Remove pgAdmin in production or restrict access
+    profiles:
+      - debug
+```
+</CodeGroup>
+
+### Health Checks
+
+Add health checks to ensure services are ready:
+
+```yaml
+services:
+  postgres:
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+  
+  api:
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+```
+
+## Troubleshooting
+
+<Accordion title="Port Already in Use">
+**Error:** `Bind for 0.0.0.0:5432 failed: port is already allocated`
+
+**Solution:**
+1. Check if PostgreSQL is running on your host:
+   ```bash
+   sudo lsof -i :5432
+   ```
+2. Stop the local PostgreSQL service or change the port mapping:
+   ```yaml
+   ports:
+     - "5433:5432"
+   ```
+   Then update `DB_PORT` in your `.env` to `5433`.
+</Accordion>
+
+<Accordion title="Database Connection Failed">
+**Error:** Application can't connect to PostgreSQL
+
+**Solutions:**
+1. Ensure containers are on the same network
+2. Use container name (`postgres`) instead of `localhost` for `DB_HOST`
+3. Wait for PostgreSQL to be fully ready (add health checks)
+4. Verify credentials match between `.env` and `docker-compose.yml`
+</Accordion>
+
+<Accordion title="Data Loss After Restart">
+**Problem:** Database data disappears when containers restart
+
+**Cause:** Volume not properly configured
+
+**Solution:**
+Ensure the volume is defined and mounted:
+```yaml
+services:
+  postgres:
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+volumes:
+  postgres_data:  # This line is crucial
+```
+</Accordion>
+
+<Accordion title="Container Crashes on Startup">
+**Solution:**
+1. View container logs:
+   ```bash
+   docker-compose logs postgres
+   ```
+2. Check for permission issues or conflicting environment variables
+3. Verify the PostgreSQL data directory is not corrupted
+4. Try removing the volume and starting fresh:
+   ```bash
+   docker-compose down -v
+   docker-compose up -d
+   ```
+</Accordion>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Environment Variables" icon="gear" href="/guides/environment-variables">
+    Configure all environment variables for your deployment
+  </Card>
+  <Card title="Email Notifications" icon="envelope" href="/guides/email-notifications">
+    Set up email notifications for your application
+  </Card>
+</CardGroup>

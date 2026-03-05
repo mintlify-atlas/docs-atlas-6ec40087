@@ -1,0 +1,547 @@
+---
+title: 'Hexagonal Architecture'
+description: 'Detailed implementation of hexagonal architecture in DevTools Hub API'
+icon: 'hexagon'
+---
+
+## What is Hexagonal Architecture?
+
+Hexagonal Architecture (also known as Ports and Adapters) is a software design pattern that aims to create loosely coupled application components. The core idea is to isolate the business logic from external concerns like databases, APIs, and frameworks.
+
+<Info>
+  The architecture is called "hexagonal" because it's often visualized as a hexagon with the domain at the center and adapters on the edges. The number of sides doesn't matter - what matters is the separation of concerns.
+</Info>
+
+## Layer Structure
+
+DevTools Hub API implements four distinct layers in each module:
+
+### Domain Layer
+
+The innermost layer containing pure business logic with zero external dependencies.
+
+**Location:** `modules/{module}/domain/`
+
+**Components:**
+- Entities: Core business objects
+- Repository Interfaces: Abstract contracts for data access
+- Value Objects: Immutable business values
+- Domain Events: Business-significant occurrences
+
+**Example: Payment Entity**
+
+```typescript
+// modules/Payments/domain/entities/payment.entity.ts
+import { Entity, PrimaryGeneratedColumn, Column, ManyToOne } from 'typeorm';
+
+@Entity({ name: 'payments' })
+export class PaymentEntity {
+  @PrimaryGeneratedColumn()
+  id: number;
+
+  @ManyToOne(() => UserEntity)
+  @JoinColumn({ name: 'user_id' })
+  user: UserEntity;
+
+  @ManyToOne(() => SubscriptionEntity)
+  @JoinColumn({ name: 'subscription_id' })
+  subscription: SubscriptionEntity;
+
+  @Column({ type: 'decimal', precision: 10, scale: 2 })
+  amount: number;
+
+  @Column({ default: 'pending' })
+  status: 'pending' | 'completed' | 'failed' | 'refunded';
+
+  @Column({ nullable: true })
+  method?: string;
+
+  @CreateDateColumn({ name: 'created_at' })
+  createdAt: Date;
+}
+```
+
+**Example: Repository Interface**
+
+```typescript
+// modules/Payments/domain/repositories/payment.repository.ts
+import { PaymentEntity } from '../entities/payment.entity';
+
+export abstract class PaymentRepository {
+  abstract save(payment: PaymentEntity): Promise<PaymentEntity>;
+  abstract findById(id: number): Promise<PaymentEntity | null>;
+  abstract findByUser(userId: string): Promise<PaymentEntity[]>;
+  abstract update(payment: PaymentEntity): Promise<PaymentEntity>;
+}
+```
+
+<Note>
+  The repository is defined as an **abstract class** in the domain layer. This is the "port" in Ports and Adapters. The infrastructure layer will provide the concrete implementation (the "adapter").
+</Note>
+
+### Application Layer
+
+Orchestrates business workflows and use cases. Contains application-specific business rules.
+
+**Location:** `modules/{module}/application/`
+
+**Components:**
+- Use Cases: Specific application workflows
+- Services: Reusable application logic
+- DTOs: Internal data transfer objects (if needed)
+
+**Example: Use Case Implementation**
+
+```typescript
+// modules/Payments/application/use-cases/create-payment.use-case.ts
+import { Injectable, NotFoundException, Inject } from '@nestjs/common';
+import { PaymentRepository } from '../../domain/repositories/payment.repository';
+import { PaymentEntity } from '../../domain/entities/payment.entity';
+
+@Injectable()
+export class CreatePaymentUseCase {
+  constructor(
+    @Inject('PaymentRepository')
+    private readonly paymentRepository: PaymentRepository,
+    @Inject('UserRepository')
+    private readonly userRepository: UserRepository,
+    @Inject('SubscriptionRepository')
+    private readonly subscriptionRepository: SubscriptionRepository,
+  ) {}
+
+  async execute(
+    userId: string,
+    subscriptionId: number,
+    amount: number,
+    method?: string
+  ): Promise<PaymentEntity> {
+    // Validate user exists
+    const user = await this.userRepository.findById(userId);
+    if (!user) throw new NotFoundException('User not found');
+
+    // Validate subscription exists
+    const subscription = await this.subscriptionRepository.findById(subscriptionId);
+    if (!subscription) throw new NotFoundException('Subscription not found');
+
+    // Create payment entity
+    const payment = new PaymentEntity();
+    payment.user = user;
+    payment.subscription = subscription;
+    payment.amount = amount;
+    payment.method = method || 'manual';
+    payment.status = 'pending';
+
+    // Persist payment
+    return this.paymentRepository.save(payment);
+  }
+}
+```
+
+<Info>
+  Use cases depend on repository **interfaces** from the domain layer, not concrete implementations. This is dependency inversion in action.
+</Info>
+
+### Infrastructure Layer
+
+Implements technical capabilities and adapters to external systems.
+
+**Location:** `modules/{module}/infrastructure/`
+
+**Components:**
+- Controllers: HTTP request handlers
+- Repository Implementations: Concrete data access
+- Adapters: External service integrations
+- Mappers: Transform between layers
+- Guards/Strategies: Authentication/authorization
+
+**Example: Repository Implementation**
+
+```typescript
+// modules/Payments/infrastructure/persistence/payment.repository.impl.ts
+import { Injectable } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
+import { PaymentRepository } from '../../domain/repositories/payment.repository';
+import { PaymentEntity } from '../../domain/entities/payment.entity';
+
+@Injectable()
+export class PaymentRepositoryImpl implements PaymentRepository {
+  constructor(
+    @InjectRepository(PaymentEntity)
+    private readonly repo: Repository<PaymentEntity>,
+  ) {}
+
+  async save(payment: PaymentEntity): Promise<PaymentEntity> {
+    return await this.repo.save(payment);
+  }
+
+  async findById(id: number): Promise<PaymentEntity | null> {
+    return await this.repo.findOne({
+      where: { id },
+      relations: ['user', 'subscription'],
+    });
+  }
+
+  async findByUser(userId: string): Promise<PaymentEntity[]> {
+    return await this.repo.find({
+      where: { user: { id: userId } },
+      relations: ['user', 'subscription'],
+      order: { createdAt: 'DESC' },
+    });
+  }
+
+  async update(payment: PaymentEntity): Promise<PaymentEntity> {
+    await this.repo.save(payment);
+    return payment;
+  }
+}
+```
+
+**Example: Controller**
+
+```typescript
+// modules/Payments/infrastructure/controllers/payment.controller.ts
+import { Controller, Post, Get, Patch, Body, Param } from '@nestjs/common';
+import { CreatePaymentUseCase } from '../../application/use-cases/create-payment.use-case';
+import { CreatePaymentDto } from '../../presentation/dto/create-payment.dto';
+import { PaymentMapper } from '../mappers/payment.mapper';
+import { PaymentResponseDto } from '../../presentation/dto/payment-response.dto';
+
+@Controller('payments')
+export class PaymentController {
+  constructor(
+    private readonly createPayment: CreatePaymentUseCase,
+    private readonly confirmPayment: ConfirmPaymentUseCase,
+    private readonly refundPayment: RefundPaymentUseCase,
+    private readonly getPaymentsByUser: GetPaymentsByUserUseCase,
+  ) {}
+
+  @Post()
+  async create(@Body() body: CreatePaymentDto): Promise<PaymentResponseDto> {
+    const entity = await this.createPayment.execute(
+      body.userId,
+      body.subscriptionId,
+      body.amount,
+      body.method
+    );
+    return PaymentMapper.toResponse(entity);
+  }
+
+  @Get(':userId')
+  async getByUser(@Param('userId') userId: string): Promise<PaymentResponseDto[]> {
+    const payments = await this.getPaymentsByUser.execute(userId);
+    return payments.map(PaymentMapper.toResponse.bind(PaymentMapper));
+  }
+
+  @Patch(':id/confirm')
+  async confirm(@Param('id') id: string): Promise<PaymentResponseDto> {
+    const entity = await this.confirmPayment.execute(Number(id));
+    return PaymentMapper.toResponse(entity);
+  }
+}
+```
+
+**Example: External Adapter**
+
+```typescript
+// modules/notifications/infrastructure/adapters/email.adapter.ts
+import { Injectable, Logger } from '@nestjs/common';
+import * as nodemailer from 'nodemailer';
+
+@Injectable()
+export class EmailAdapter {
+  private readonly logger = new Logger(EmailAdapter.name);
+  private transporter: nodemailer.Transporter;
+
+  constructor() {
+    this.transporter = nodemailer.createTransport({
+      host: process.env.MAIL_HOST,
+      port: Number(process.env.MAIL_PORT),
+      secure: true,
+      auth: {
+        user: process.env.MAIL_USER,
+        pass: process.env.MAIL_PASS,
+      },
+    });
+  }
+
+  async sendEmail(to: string, subject: string, message: string): Promise<boolean> {
+    try {
+      await this.transporter.sendMail({
+        from: process.env.MAIL_FROM || process.env.MAIL_USER,
+        to,
+        subject,
+        html: this.buildEmailTemplate(message),
+      });
+      this.logger.log(`Email sent successfully to ${to}`);
+      return true;
+    } catch (error) {
+      this.logger.error(`Error sending email: ${error.message}`);
+      return false;
+    }
+  }
+
+  private buildEmailTemplate(message: string): string {
+    // HTML template implementation
+  }
+}
+```
+
+### Presentation Layer
+
+Defines the contract between the API and external consumers.
+
+**Location:** `modules/{module}/presentation/`
+
+**Components:**
+- Request DTOs: Input validation and documentation
+- Response DTOs: Output structure
+- API documentation decorators
+
+**Example: Request DTO**
+
+```typescript
+// modules/Payments/presentation/dto/create-payment.dto.ts
+import { IsNotEmpty, IsNumber, IsString } from 'class-validator';
+import { ApiProperty } from '@nestjs/swagger';
+
+export class CreatePaymentDto {
+  @ApiProperty({
+    description: 'User ID making the payment',
+    example: 'user-12345',
+    required: true
+  })
+  @IsNotEmpty({ message: 'User ID is required' })
+  @IsString({ message: 'User ID must be a string' })
+  userId: string;
+
+  @ApiProperty({
+    description: 'Subscription ID associated with payment',
+    example: 1,
+    required: true
+  })
+  @IsNotEmpty({ message: 'Subscription ID is required' })
+  @IsNumber({}, { message: 'Subscription ID must be a number' })
+  subscriptionId: number;
+
+  @ApiProperty({
+    description: 'Payment amount',
+    example: 99.99,
+    required: true
+  })
+  @IsNotEmpty({ message: 'Amount is required' })
+  @IsNumber({}, { message: 'Amount must be a number' })
+  amount: number;
+
+  @ApiProperty({
+    description: 'Payment method',
+    example: 'credit_card',
+    required: false
+  })
+  @IsString({ message: 'Payment method must be a string' })
+  method?: string;
+}
+```
+
+## Module Wiring
+
+NestJS modules wire everything together using dependency injection:
+
+```typescript
+// modules/Payments/payment.module.ts
+import { Module } from '@nestjs/common';
+import { TypeOrmModule } from '@nestjs/typeorm';
+import { PaymentEntity } from './domain/entities/payment.entity';
+import { PaymentRepositoryImpl } from './infrastructure/persistence/payment.repository.impl';
+import { CreatePaymentUseCase } from './application/use-cases/create-payment.use-case';
+import { PaymentController } from './infrastructure/controllers/payment.controller';
+
+@Module({
+  imports: [
+    TypeOrmModule.forFeature([PaymentEntity]),
+    UsersModule,
+    SubscriptionsModule,
+    NotificationsModule
+  ],
+  controllers: [PaymentController],
+  providers: [
+    // Register repository implementation with interface token
+    { provide: 'PaymentRepository', useClass: PaymentRepositoryImpl },
+    // Register use cases
+    CreatePaymentUseCase,
+    ConfirmPaymentUseCase,
+    RefundPaymentUseCase,
+    GetPaymentsByUserUseCase,
+  ],
+  exports: ['PaymentRepository'], // Export for other modules
+})
+export class PaymentsModule {}
+```
+
+<Note>
+  The key pattern here is `{ provide: 'PaymentRepository', useClass: PaymentRepositoryImpl }`. This tells NestJS to inject `PaymentRepositoryImpl` whenever something asks for `'PaymentRepository'`.
+</Note>
+
+## Dependency Flow
+
+Dependencies always point inward toward the domain:
+
+```
+┌─────────────────────────────────────────┐
+│         Presentation Layer              │
+│         (DTOs, Validation)              │
+└─────────────────┬───────────────────────┘
+                  │
+                  ▼
+┌─────────────────────────────────────────┐
+│       Infrastructure Layer              │
+│    (Controllers, Repositories,          │
+│     Adapters, Mappers)                  │
+└─────────────────┬───────────────────────┘
+                  │
+                  ▼
+┌─────────────────────────────────────────┐
+│        Application Layer                │
+│      (Use Cases, Services)              │
+└─────────────────┬───────────────────────┘
+                  │
+                  ▼
+┌─────────────────────────────────────────┐
+│          Domain Layer                   │
+│  (Entities, Repository Interfaces)      │
+│       (PURE BUSINESS LOGIC)             │
+└─────────────────────────────────────────┘
+```
+
+## Benefits in Practice
+
+<AccordionGroup>
+  <Accordion title="Easy to Test" icon="vial">
+    Each layer can be tested in isolation:
+    
+    ```typescript
+    // Test use case without database
+    const mockRepository = {
+      save: jest.fn(),
+      findById: jest.fn(),
+    };
+    
+    const useCase = new CreatePaymentUseCase(
+      mockRepository as any,
+      mockUserRepository,
+      mockSubscriptionRepository
+    );
+    
+    // Test business logic
+    await useCase.execute('user-1', 1, 99.99);
+    ```
+  </Accordion>
+  
+  <Accordion title="Easy to Swap Implementations" icon="repeat">
+    Want to switch from TypeORM to Prisma? Just create a new repository implementation:
+    
+    ```typescript
+    @Injectable()
+    export class PaymentRepositoryPrisma implements PaymentRepository {
+      // New implementation using Prisma
+    }
+    
+    // Update module
+    { provide: 'PaymentRepository', useClass: PaymentRepositoryPrisma }
+    ```
+    
+    No changes needed in use cases or controllers!
+  </Accordion>
+  
+  <Accordion title="Clear Boundaries" icon="border-all">
+    Each layer has a specific role:
+    - Domain: What the business needs
+    - Application: How workflows are orchestrated
+    - Infrastructure: How technical details are implemented
+    - Presentation: How data is validated and documented
+  </Accordion>
+  
+  <Accordion title="Framework Independence" icon="code">
+    The domain and application layers have no knowledge of NestJS. If you needed to migrate to another framework, these layers could be reused as-is.
+  </Accordion>
+</AccordionGroup>
+
+## Common Patterns
+
+### Repository Pattern
+
+Abstract data access behind interfaces:
+
+```typescript
+// Domain defines the contract
+export abstract class PaymentRepository {
+  abstract save(payment: PaymentEntity): Promise<PaymentEntity>;
+}
+
+// Infrastructure provides implementation
+export class PaymentRepositoryImpl implements PaymentRepository {
+  async save(payment: PaymentEntity): Promise<PaymentEntity> {
+    return this.repo.save(payment);
+  }
+}
+```
+
+### Use Case Pattern
+
+Each use case represents a single business operation:
+
+```typescript
+CreatePaymentUseCase
+ConfirmPaymentUseCase
+RefundPaymentUseCase
+GetPaymentsByUserUseCase
+```
+
+This makes the system's capabilities explicit and easy to understand.
+
+### Mapper Pattern
+
+Transform between layers without coupling them:
+
+```typescript
+export class PaymentMapper {
+  static toResponse(entity: PaymentEntity): PaymentResponseDto {
+    return {
+      id: entity.id,
+      amount: entity.amount,
+      status: entity.status,
+      createdAt: entity.createdAt.toISOString(),
+    };
+  }
+}
+```
+
+## Best Practices
+
+<Steps>
+  <Step title="Keep Domain Pure">
+    The domain layer should have no external dependencies. No NestJS decorators, no HTTP concerns, no database specifics.
+  </Step>
+  
+  <Step title="Use Dependency Injection">
+    Always inject dependencies through constructors. Use interface tokens for repositories.
+  </Step>
+  
+  <Step title="One Use Case Per Operation">
+    Keep use cases focused on a single business operation. Don't create "god" services.
+  </Step>
+  
+  <Step title="Validate at Boundaries">
+    Use DTOs with validation decorators at the presentation layer to validate input early.
+  </Step>
+  
+  <Step title="Map Between Layers">
+    Use mappers to transform data between layers. Never expose domain entities directly via HTTP.
+  </Step>
+</Steps>
+
+## Next Steps
+
+<Card title="Module Documentation" icon="cube" href="/architecture/modules">
+  See how each module in DevTools Hub API implements this architecture
+</Card>

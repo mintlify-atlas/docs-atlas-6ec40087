@@ -1,80 +1,331 @@
 ---
-title: "Quickstart"
-description: "Start building awesome documentation in minutes"
+title: 'Quickstart'
+description: 'Get started with DevTools Hub API in under 5 minutes'
 ---
 
-## Get started in three steps
+# Quickstart Guide
 
-Get your documentation site running locally and make your first customization.
+This guide will walk you through making your first API requests to DevTools Hub. You'll learn how to register a user, authenticate, create a plan, subscribe to it, and process a payment.
 
-### Step 1: Set up your local environment
+## Prerequisites
 
-<AccordionGroup>
-  <Accordion icon="copy" title="Clone your docs locally">
-    During the onboarding process, you created a GitHub repository with your docs content if you didn't already have one. You can find a link to this repository in your [dashboard](https://dashboard.mintlify.com).
-    
-    To clone the repository locally so that you can make and preview changes to your docs, follow the [Cloning a repository](https://docs.github.com/en/repositories/creating-and-managing-repositories/cloning-a-repository) guide in the GitHub docs.
-  </Accordion>
-  <Accordion icon="rectangle-terminal" title="Start the preview server">
-    1. Install the Mintlify CLI: `npm i -g mint`
-    2. Navigate to your docs directory and run: `mint dev`
-    3. Open `http://localhost:3000` to see your docs live!
-    
-    <Tip>Your preview updates automatically as you edit files.</Tip>
-  </Accordion>
-</AccordionGroup>
+Before you begin, make sure you have:
 
-### Step 2: Deploy your changes
-
-<AccordionGroup>
-  <Accordion icon="github" title="Install our GitHub app">
-    Install the Mintlify GitHub app from your [dashboard](https://dashboard.mintlify.com/settings/organization/github-app).
-    
-    Our GitHub app automatically deploys your changes to your docs site, so you don't need to manage deployments yourself.
-</Accordion>
-<Accordion icon="palette" title="Update your site name and colors">
-    For a first change, let's update the name and colors of your docs site.
-
-    1. Open `docs.json` in your editor.
-    2. Change the `"name"` field to your project name.
-    3. Update the `"colors"` to match your brand.
-    4. Save and see your changes instantly at `http://localhost:3000`.
-
-    <Tip>Try changing the primary color to see an immediate difference!</Tip>
-  </Accordion>
-</AccordionGroup>
-
-### Step 3: Go live
-
-<Accordion icon="rocket" title="Publish your docs">
-  1. Commit and push your changes.
-  2. Your docs will update and be live in moments!
-</Accordion>
-
-## Next steps
-
-Now that you have your docs running, explore these key features:
-
-<CardGroup cols={2}>
-
-<Card title="Write Content" icon="pen-to-square" href="/essentials/markdown">
-  Learn MDX syntax and start writing your documentation.
-</Card>
-
-<Card title="Customize style" icon="palette" href="/essentials/settings">
-  Make your docs match your brand perfectly.
-</Card>
-
-<Card title="Add code examples" icon="square-code" href="/essentials/code">
-  Include syntax-highlighted code blocks.
-</Card>
-
-<Card title="API documentation" icon="code" href="/api-reference/introduction">
-  Auto-generate API docs from OpenAPI specs.
-</Card>
-
-</CardGroup>
+- DevTools Hub API running locally at `http://localhost:3000`
+- A tool to make HTTP requests (cURL, Postman, or similar)
+- Basic understanding of REST APIs
 
 <Note>
-  **Need help?** See our [full documentation](https://mintlify.com/docs) or join our [community](https://mintlify.com/community).
+  All API endpoints are prefixed with `/api`. For example: `http://localhost:3000/api/auth/register`
 </Note>
+
+## Make Your First Request
+
+<Steps>
+  <Step title="Register a New User">
+    Create your first user account by sending a POST request to the registration endpoint.
+
+    ```bash cURL
+    curl -X POST http://localhost:3000/api/auth/register \
+      -H "Content-Type: application/json" \
+      -d '{
+        "name": "Juan Pérez",
+        "email": "juan.perez@ejemplo.com",
+        "password": "MiContraseñaSegura123"
+      }'
+    ```
+
+    ```javascript JavaScript
+    const response = await fetch('http://localhost:3000/api/auth/register', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        name: 'Juan Pérez',
+        email: 'juan.perez@ejemplo.com',
+        password: 'MiContraseñaSegura123'
+      })
+    });
+
+    const data = await response.json();
+    console.log(data);
+    ```
+
+    **Response:**
+    ```json
+    {
+      "success": true,
+      "message": "User registered successfully",
+      "data": {
+        "id": "user-12345",
+        "email": "juan.perez@ejemplo.com"
+      }
+    }
+    ```
+
+    <Note>
+      Upon registration, a welcome email will be automatically sent to the provided email address.
+    </Note>
+  </Step>
+
+  <Step title="Login and Get Access Token">
+    Authenticate with your credentials to receive an access token.
+
+    ```bash cURL
+    curl -X POST http://localhost:3000/api/auth/login \
+      -H "Content-Type: application/json" \
+      -d '{
+        "email": "juan.perez@ejemplo.com",
+        "password": "MiContraseñaSegura123"
+      }'
+    ```
+
+    ```javascript JavaScript
+    const response = await fetch('http://localhost:3000/api/auth/login', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        email: 'juan.perez@ejemplo.com',
+        password: 'MiContraseñaSegura123'
+      })
+    });
+
+    const data = await response.json();
+    console.log(data);
+    ```
+
+    **Response:**
+    ```json
+    {
+      "success": true,
+      "message": "Login successful",
+      "data": {
+        "accessToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+        "user": {
+          "id": "user-12345",
+          "email": "juan.perez@ejemplo.com",
+          "name": "Juan Pérez"
+        }
+      }
+    }
+    ```
+
+    <Warning>
+      Store the `accessToken` securely. You'll need it for authenticated requests.
+    </Warning>
+  </Step>
+
+  <Step title="Create a Subscription Plan">
+    Create a new subscription plan that users can subscribe to.
+
+    ```bash cURL
+    curl -X POST http://localhost:3000/api/plans/create \
+      -H "Content-Type: application/json" \
+      -d '{
+        "name": "Premium",
+        "description": "Access to all premium features",
+        "price": 99.99,
+        "isActive": true
+      }'
+    ```
+
+    ```javascript JavaScript
+    const response = await fetch('http://localhost:3000/api/plans/create', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        name: 'Premium',
+        description: 'Access to all premium features',
+        price: 99.99,
+        isActive: true
+      })
+    });
+
+    const plan = await response.json();
+    console.log(plan);
+    ```
+
+    **Response:**
+    ```json
+    {
+      "id": 1,
+      "name": "Premium",
+      "description": "Access to all premium features",
+      "price": 99.99,
+      "isActive": true,
+      "createdAt": "2026-03-05T14:20:00.000Z",
+      "updatedAt": "2026-03-05T14:20:00.000Z"
+    }
+    ```
+
+    <Note>
+      Save the `id` from the response - you'll need it to create a subscription.
+    </Note>
+  </Step>
+
+  <Step title="Create a Subscription">
+    Subscribe a user to the plan you just created.
+
+    ```bash cURL
+    curl -X POST http://localhost:3000/api/subscriptions/create \
+      -H "Content-Type: application/json" \
+      -d '{
+        "userId": "user-12345",
+        "planId": 1
+      }'
+    ```
+
+    ```javascript JavaScript
+    const response = await fetch('http://localhost:3000/api/subscriptions/create', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        userId: 'user-12345',
+        planId: 1
+      })
+    });
+
+    const subscription = await response.json();
+    console.log(subscription);
+    ```
+
+    **Response:**
+    ```json
+    {
+      "id": 1,
+      "userId": "user-12345",
+      "planId": 1,
+      "status": "active",
+      "startDate": "2026-03-05T14:20:00.000Z",
+      "endDate": "2026-04-05T14:20:00.000Z",
+      "createdAt": "2026-03-05T14:20:00.000Z"
+    }
+    ```
+  </Step>
+
+  <Step title="Create a Payment">
+    Process a payment for the subscription.
+
+    ```bash cURL
+    curl -X POST http://localhost:3000/api/payments \
+      -H "Content-Type: application/json" \
+      -d '{
+        "userId": "user-12345",
+        "subscriptionId": 1,
+        "amount": 99.99,
+        "method": "credit_card"
+      }'
+    ```
+
+    ```javascript JavaScript
+    const response = await fetch('http://localhost:3000/api/payments', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        userId: 'user-12345',
+        subscriptionId: 1,
+        amount: 99.99,
+        method: 'credit_card'
+      })
+    });
+
+    const payment = await response.json();
+    console.log(payment);
+    ```
+
+    **Response:**
+    ```json
+    {
+      "id": 1,
+      "userId": "user-12345",
+      "subscriptionId": 1,
+      "amount": 99.99,
+      "method": "credit_card",
+      "status": "pending",
+      "createdAt": "2026-03-05T14:20:00.000Z"
+    }
+    ```
+  </Step>
+
+  <Step title="Confirm the Payment">
+    Confirm the payment to complete the transaction. This will trigger a confirmation email.
+
+    ```bash cURL
+    curl -X PATCH http://localhost:3000/api/payments/1/confirm \
+      -H "Content-Type: application/json"
+    ```
+
+    ```javascript JavaScript
+    const response = await fetch('http://localhost:3000/api/payments/1/confirm', {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    });
+
+    const confirmedPayment = await response.json();
+    console.log(confirmedPayment);
+    ```
+
+    **Response:**
+    ```json
+    {
+      "id": 1,
+      "userId": "user-12345",
+      "subscriptionId": 1,
+      "amount": 99.99,
+      "method": "credit_card",
+      "status": "confirmed",
+      "confirmedAt": "2026-03-05T14:25:00.000Z",
+      "createdAt": "2026-03-05T14:20:00.000Z"
+    }
+    ```
+
+    <Note>
+      A confirmation email will be automatically sent to the user's email address with the payment details.
+    </Note>
+  </Step>
+</Steps>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="API Reference" icon="book" href="/api/auth/register">
+    Explore all available endpoints and their parameters
+  </Card>
+  <Card title="Architecture" icon="sitemap" href="/architecture/overview">
+    Learn about the hexagonal architecture implementation
+  </Card>
+  <Card title="Authentication" icon="lock" href="/guides/authentication">
+    Deep dive into JWT authentication and security
+  </Card>
+  <Card title="Notifications" icon="envelope" href="/guides/email-notifications">
+    Set up email notifications for your application
+  </Card>
+</CardGroup>
+
+## Interactive API Documentation
+
+You can also test these endpoints interactively using Swagger UI:
+
+👉 **[http://localhost:3000/api/docs](http://localhost:3000/api/docs)**
+
+Swagger provides a complete interface to test all endpoints with automatic request/response validation.
+
+## Need Help?
+
+If you encounter any issues:
+
+1. Check that all required environment variables are configured
+2. Verify the database connection is working
+3. Review the [Installation Guide](/installation) for setup instructions
+4. Check the API logs for detailed error messages

@@ -1,0 +1,110 @@
+---
+title: 'Get User Subscriptions'
+api: 'GET /api/subscriptions/:userId'
+description: 'Retrieve all subscriptions for a specific user'
+---
+
+## Request
+
+<ParamField path="userId" type="string" required>
+  ID of the user whose subscriptions to retrieve
+  
+  Example: `user-12345`
+</ParamField>
+
+## Response
+
+Returns an array of subscription objects.
+
+<ResponseField name="id" type="number">
+  Unique identifier for the subscription
+</ResponseField>
+
+<ResponseField name="userId" type="string">
+  ID of the user who owns the subscription
+</ResponseField>
+
+<ResponseField name="planId" type="number">
+  ID of the subscribed plan
+</ResponseField>
+
+<ResponseField name="planName" type="string">
+  Name of the subscribed plan
+</ResponseField>
+
+<ResponseField name="status" type="string">
+  Current status of the subscription
+  
+  Possible values: `active`, `cancelled`, `expired`
+</ResponseField>
+
+<ResponseField name="startDate" type="string">
+  ISO 8601 timestamp when the subscription started
+</ResponseField>
+
+<ResponseField name="endDate" type="string" optional>
+  ISO 8601 timestamp when the subscription ends (if applicable)
+</ResponseField>
+
+<ResponseField name="createdAt" type="string">
+  ISO 8601 timestamp when the subscription was created
+</ResponseField>
+
+<ResponseField name="updatedAt" type="string">
+  ISO 8601 timestamp when the subscription was last updated
+</ResponseField>
+
+## Example
+
+<CodeGroup>
+
+```bash cURL
+curl -X GET https://api.devtoolshub.com/api/subscriptions/user-12345
+```
+
+```javascript JavaScript
+const response = await fetch('https://api.devtoolshub.com/api/subscriptions/user-12345');
+const subscriptions = await response.json();
+```
+
+```python Python
+import requests
+
+response = requests.get('https://api.devtoolshub.com/api/subscriptions/user-12345')
+subscriptions = response.json()
+```
+
+</CodeGroup>
+
+### Response Example
+
+```json
+[
+  {
+    "id": 42,
+    "userId": "user-12345",
+    "planId": 1,
+    "planName": "Pro Plan",
+    "status": "active",
+    "startDate": "2026-03-05T10:30:00.000Z",
+    "endDate": "2027-03-05T10:30:00.000Z",
+    "createdAt": "2026-03-05T10:30:00.000Z",
+    "updatedAt": "2026-03-05T10:30:00.000Z"
+  },
+  {
+    "id": 38,
+    "userId": "user-12345",
+    "planId": 2,
+    "planName": "Basic Plan",
+    "status": "cancelled",
+    "startDate": "2025-01-15T08:00:00.000Z",
+    "endDate": "2026-01-15T08:00:00.000Z",
+    "createdAt": "2025-01-15T08:00:00.000Z",
+    "updatedAt": "2025-12-20T14:22:00.000Z"
+  }
+]
+```
+
+<Note>
+  This endpoint returns all subscriptions for the user, including active, cancelled, and expired subscriptions. An empty array is returned if the user has no subscriptions.
+</Note>

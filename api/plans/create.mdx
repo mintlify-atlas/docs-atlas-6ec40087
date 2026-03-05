@@ -1,0 +1,136 @@
+---
+title: 'Create Plan'
+api: 'POST /api/plans/create'
+description: 'Create a new plan'
+---
+
+This endpoint creates a new plan in the database.
+
+## Request
+
+### Headers
+
+<ParamField header="Content-Type" type="string" default="application/json" required>
+  The content type of the request
+</ParamField>
+
+### Body Parameters
+
+<ParamField body="name" type="string" required>
+  The name of the plan. Must be unique across all plans.
+</ParamField>
+
+<ParamField body="description" type="string">
+  A detailed description of what the plan offers
+</ParamField>
+
+<ParamField body="price" type="number" default="0">
+  The price of the plan. Supports up to 2 decimal places (e.g., 9.99)
+</ParamField>
+
+<ParamField body="isActive" type="boolean" default="true">
+  Whether the plan should be active immediately upon creation
+</ParamField>
+
+## Response
+
+Returns the created plan object.
+
+<ResponseField name="id" type="number" required>
+  Unique identifier assigned to the new plan
+</ResponseField>
+
+<ResponseField name="name" type="string" required>
+  The name of the plan
+</ResponseField>
+
+<ResponseField name="description" type="string">
+  The plan description
+</ResponseField>
+
+<ResponseField name="price" type="number" required>
+  The price of the plan
+</ResponseField>
+
+<ResponseField name="isActive" type="boolean">
+  Whether the plan is active
+</ResponseField>
+
+<ResponseField name="createdAt" type="string" required>
+  Timestamp when the plan was created (ISO 8601 format)
+</ResponseField>
+
+<ResponseField name="updatedAt" type="string" required>
+  Timestamp when the plan was last updated (ISO 8601 format)
+</ResponseField>
+
+## Example
+
+<CodeGroup>
+
+```bash cURL
+curl --request POST \
+  --url http://localhost:3000/api/plans/create \
+  --header 'Content-Type: application/json' \
+  --data '{
+    "name": "Enterprise Plan",
+    "description": "Full-featured plan for large teams",
+    "price": 99.99,
+    "isActive": true
+  }'
+```
+
+```javascript JavaScript
+fetch('http://localhost:3000/api/plans/create', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json'
+  },
+  body: JSON.stringify({
+    name: 'Enterprise Plan',
+    description: 'Full-featured plan for large teams',
+    price: 99.99,
+    isActive: true
+  })
+})
+  .then(response => response.json())
+  .then(data => console.log(data));
+```
+
+```python Python
+import requests
+
+data = {
+    "name": "Enterprise Plan",
+    "description": "Full-featured plan for large teams",
+    "price": 99.99,
+    "isActive": True
+}
+
+response = requests.post(
+    'http://localhost:3000/api/plans/create',
+    json=data
+)
+plan = response.json()
+print(plan)
+```
+
+</CodeGroup>
+
+### Response Example
+
+```json
+{
+  "id": 3,
+  "name": "Enterprise Plan",
+  "description": "Full-featured plan for large teams",
+  "price": 99.99,
+  "isActive": true,
+  "createdAt": "2026-03-05T08:45:00.000Z",
+  "updatedAt": "2026-03-05T08:45:00.000Z"
+}
+```
+
+<Note>
+  The `name` field must be unique. If you attempt to create a plan with a name that already exists, the request will fail with a conflict error.
+</Note>

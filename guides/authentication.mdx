@@ -1,0 +1,396 @@
+---
+title: 'JWT Authentication'
+description: 'Learn how to implement JWT authentication in DevTools Hub API'
+icon: 'shield-halved'
+---
+
+## Overview
+
+DevTools Hub API uses JWT (JSON Web Tokens) for stateless authentication. The authentication system is built with Passport.js and follows a hexagonal architecture pattern.
+
+## Authentication Flow
+
+<Steps>
+  <Step title="User Registration">
+    Users register with their email, name, and password. Passwords are hashed using bcrypt before storage.
+    
+    ```typescript
+    POST /api/auth/register
+    Content-Type: application/json
+
+    {
+      "name": "Juan Pérez",
+      "email": "juan.perez@ejemplo.com",
+      "password": "MiContraseñaSegura123"
+    }
+    ```
+
+    **Response:**
+    ```json
+    {
+      "success": true,
+      "message": "User registered successfully",
+      "data": {
+        "id": "uuid-here",
+        "email": "juan.perez@ejemplo.com"
+      }
+    }
+    ```
+  </Step>
+
+  <Step title="User Login">
+    After registration, users can login with their credentials to receive a JWT token.
+    
+    ```typescript
+    POST /api/auth/login
+    Content-Type: application/json
+
+    {
+      "email": "juan.perez@ejemplo.com",
+      "password": "MiContraseñaSegura123"
+    }
+    ```
+
+    **Response:**
+    ```json
+    {
+      "success": true,
+      "message": "Login successful",
+      "data": {
+        "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+      }
+    }
+    ```
+  </Step>
+
+  <Step title="Access Protected Routes">
+    Use the JWT token in the Authorization header for protected endpoints.
+    
+    ```bash
+    curl -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+      http://localhost:3000/api/users/profile
+    ```
+  </Step>
+</Steps>
+
+<Note>
+The JWT token contains the user's `sub` (user ID) and `email` in the payload, which can be accessed in protected routes.
+</Note>
+
+## JWT Configuration
+
+The JWT strategy is configured in `src/modules/auth/infrastructure/security/jwt.strategy.ts`:
+
+```typescript
+import { Injectable } from "@nestjs/common";
+import { PassportStrategy } from "@nestjs/passport";
+import { ExtractJwt, Strategy } from "passport-jwt";
+
+@Injectable()
+export class JwtStrategy extends PassportStrategy(Strategy) {
+  constructor() {
+    super({
+      jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
+      ignoreExpiration: false,
+      secretOrKey: process.env.JWT_SECRET || "secretKey",
+    });
+  }
+
+  async validate(payload: any) {
+    return { userId: payload.sub, email: payload.email };
+  }
+}
+```
+
+### Key Configuration Options
+
+- **jwtFromRequest**: Extracts JWT from the `Bearer` token in the Authorization header
+- **ignoreExpiration**: Set to `false` to reject expired tokens
+- **secretOrKey**: Secret key for signing/verifying tokens (configured via `JWT_SECRET` environment variable)
+
+<Warning>
+Always set a strong `JWT_SECRET` in production. Never use the default "secretKey" value.
+</Warning>
+
+## Using JWT Guards
+
+Protect your routes using the `JwtAuthGuard`:
+
+### Guard Implementation
+
+The guard is a simple wrapper around Passport's JWT strategy:
+
+```typescript
+// src/modules/auth/infrastructure/security/jwt-auth.guard.ts
+import { Injectable } from "@nestjs/common";
+import { AuthGuard } from "@nestjs/passport";
+
+@Injectable()
+export class JwtAuthGuard extends AuthGuard("jwt") {}
+```
+
+### Protecting Routes
+
+Apply the guard to controllers or individual route handlers:
+
+<CodeGroup>
+```typescript Controller Level
+import { Controller, Get, UseGuards } from '@nestjs/common';
+import { JwtAuthGuard } from '../auth/infrastructure/security/jwt-auth.guard';
+
+@Controller('users')
+@UseGuards(JwtAuthGuard) // Protects all routes in this controller
+export class UserController {
+  @Get('profile')
+  getProfile() {
+    return { message: 'This route is protected' };
+  }
+}
+```
+
+```typescript Route Level
+import { Controller, Get, UseGuards } from '@nestjs/common';
+import { JwtAuthGuard } from '../auth/infrastructure/security/jwt-auth.guard';
+
+@Controller('users')
+export class UserController {
+  @Get('profile')
+  @UseGuards(JwtAuthGuard) // Protects only this route
+  getProfile() {
+    return { message: 'This route is protected' };
+  }
+
+  @Get('public')
+  getPublicData() {
+    return { message: 'This route is public' };
+  }
+}
+```
+</CodeGroup>
+
+## Accessing Current User
+
+Retrieve the authenticated user's information in your route handlers:
+
+```typescript
+import { Controller, Get, UseGuards, Request } from '@nestjs/common';
+import { JwtAuthGuard } from '../auth/infrastructure/security/jwt-auth.guard';
+
+@Controller('users')
+export class UserController {
+  @Get('profile')
+  @UseGuards(JwtAuthGuard)
+  getProfile(@Request() req) {
+    // req.user contains { userId: string, email: string }
+    return {
+      userId: req.user.userId,
+      email: req.user.email
+    };
+  }
+}
+```
+
+<Info>
+The `validate()` method in `JwtStrategy` determines what data is attached to `req.user`.
+</Info>
+
+## Authentication Module Setup
+
+The authentication module integrates JWT, user repository, and notification services:
+
+```typescript
+// src/modules/auth/auth.module.ts
+import { Module } from "@nestjs/common";
+import { TypeOrmModule } from "@nestjs/typeorm";
+import { UserEntity } from "../user/domain/user.entity";
+import { AuthController } from "./infrastructure/controllers/auth.controller";
+import { AuthService } from "./application/services/auth.service";
+import { RegisterUseCase } from "./application/use-cases/register.use-case";
+import { LoginUseCase } from "./application/use-cases/login.use-case";
+import { UserRepositoryImpl } from "../user/infrastructure/persistence/user.repository.impl";
+import { NotificationsModule } from "../notifications/notifications.module";
+
+@Module({
+  imports: [TypeOrmModule.forFeature([UserEntity]), NotificationsModule],
+  controllers: [AuthController],
+  providers: [
+    AuthService,
+    RegisterUseCase,
+    LoginUseCase,
+    {
+      provide: "UserRepository",
+      useClass: UserRepositoryImpl,
+    },
+  ],
+  exports: ["UserRepository"],
+})
+export class AuthModule {}
+```
+
+## Data Transfer Objects (DTOs)
+
+The API uses class-validator for request validation:
+
+<Accordion title="Register DTO">
+```typescript
+import { IsEmail, IsNotEmpty, MinLength } from "class-validator";
+import { ApiProperty } from "@nestjs/swagger";
+
+export class RegisterDto {
+  @ApiProperty({
+    description: 'Nombre completo del usuario',
+    example: 'Juan Pérez',
+    required: true
+  })
+  @IsNotEmpty({ message: 'El nombre es requerido' })
+  name: string;
+
+  @ApiProperty({
+    description: 'Dirección de correo electrónico válida',
+    example: 'juan.perez@ejemplo.com',
+    format: 'email'
+  })
+  @IsEmail({}, { message: 'El email debe ser una dirección válida' })
+  email: string;
+
+  @ApiProperty({
+    description: 'Contraseña del usuario (mínimo 6 caracteres)',
+    example: 'MiContraseñaSegura123',
+    minLength: 6,
+    required: true
+  })
+  @MinLength(6, { message: 'La contraseña debe tener al menos 6 caracteres' })
+  password: string;
+}
+```
+</Accordion>
+
+<Accordion title="Login DTO">
+```typescript
+import { IsEmail, IsNotEmpty, MinLength } from "class-validator";
+import { ApiProperty } from "@nestjs/swagger";
+
+export class LoginDto {
+  @ApiProperty({
+    description: 'Dirección de correo electrónico válida',
+    example: 'usuario@ejemplo.com',
+    format: 'email'
+  })
+  @IsEmail({}, { message: 'El email debe ser una dirección válida' })
+  email: string;
+
+  @ApiProperty({
+    description: 'Contraseña del usuario (mínimo 6 caracteres)',
+    example: 'MiContraseñaSegura123',
+    minLength: 6
+  })
+  @IsNotEmpty({ message: 'La contraseña es requerida' })
+  @MinLength(6, { message: 'La contraseña debe tener al menos 6 caracteres' })
+  password: string;
+}
+```
+</Accordion>
+
+## Environment Variables
+
+Configure these environment variables for JWT authentication:
+
+| Variable | Description | Default | Required |
+|----------|-------------|---------|----------|
+| `JWT_SECRET` | Secret key for signing JWT tokens | `secretKey` | Yes (in production) |
+| `JWT_EXPIRATION` | Token expiration time | `1d` | No |
+
+<Warning>
+**Security Best Practices:**
+- Use a strong, randomly generated `JWT_SECRET` (minimum 32 characters)
+- Set appropriate token expiration times
+- Store JWT secrets in secure vault services in production
+- Never commit secrets to version control
+</Warning>
+
+## Testing Authentication
+
+Test the authentication endpoints using curl or your favorite API client:
+
+<Steps>
+  <Step title="Register a New User">
+    ```bash
+    curl -X POST http://localhost:3000/api/auth/register \
+      -H "Content-Type: application/json" \
+      -d '{
+        "name": "Test User",
+        "email": "test@example.com",
+        "password": "password123"
+      }'
+    ```
+  </Step>
+
+  <Step title="Login and Get Token">
+    ```bash
+    curl -X POST http://localhost:3000/api/auth/login \
+      -H "Content-Type: application/json" \
+      -d '{
+        "email": "test@example.com",
+        "password": "password123"
+      }'
+    ```
+    
+    Save the token from the response.
+  </Step>
+
+  <Step title="Access Protected Endpoint">
+    ```bash
+    curl -X GET http://localhost:3000/api/users/profile \
+      -H "Authorization: Bearer YOUR_JWT_TOKEN_HERE"
+    ```
+  </Step>
+</Steps>
+
+## Common Issues
+
+<Accordion title="401 Unauthorized Error">
+**Possible causes:**
+- Token is expired
+- Token is malformed or invalid
+- JWT_SECRET mismatch between token generation and validation
+- Missing Authorization header
+
+**Solution:**
+Verify the token format and ensure the Authorization header is correctly set:
+```
+Authorization: Bearer <token>
+```
+</Accordion>
+
+<Accordion title="Strategy Not Found Error">
+**Cause:** JWT strategy is not properly registered in the auth module.
+
+**Solution:**
+Ensure `JwtStrategy` is added to the providers array and `PassportModule` is imported:
+```typescript
+import { PassportModule } from '@nestjs/passport';
+import { JwtModule } from '@nestjs/jwt';
+
+@Module({
+  imports: [
+    PassportModule,
+    JwtModule.register({
+      secret: process.env.JWT_SECRET,
+      signOptions: { expiresIn: '1d' },
+    }),
+  ],
+  providers: [JwtStrategy],
+})
+```
+</Accordion>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="API Reference" icon="book" href="/api/auth/register">
+    Explore the complete authentication API reference
+  </Card>
+  <Card title="User Management" icon="users" href="/api/users/get-all">
+    Learn how to manage user profiles and permissions
+  </Card>
+</CardGroup>

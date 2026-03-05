@@ -1,0 +1,690 @@
+---
+title: 'Environment Variables'
+description: 'Complete reference for all environment variables in DevTools Hub API'
+icon: 'gear'
+---
+
+## Overview
+
+DevTools Hub API uses environment variables for configuration management. This approach follows the [12-factor app methodology](https://12factor.net/config) and allows for flexible deployment across different environments.
+
+## Configuration File
+
+The project includes a `.env.example` file that serves as a template. Copy this file to create your own `.env`:
+
+```bash
+cp .env.example .env
+```
+
+<Warning>
+Never commit your `.env` file to version control. It should be included in `.gitignore`.
+</Warning>
+
+## Environment Variables Reference
+
+### Database Configuration
+
+PostgreSQL database connection settings.
+
+<ParamField path="DB_HOST" type="string" required>
+  Database host address.
+  
+  **Default:** `localhost`
+  
+  **Docker:** Use container name `postgres` when running in Docker Compose
+  
+  ```bash
+  DB_HOST=localhost
+  # or for Docker:
+  DB_HOST=postgres
+  ```
+</ParamField>
+
+<ParamField path="DB_PORT" type="number" required>
+  Database port number.
+  
+  **Default:** `5432`
+  
+  ```bash
+  DB_PORT=5432
+  ```
+</ParamField>
+
+<ParamField path="DB_USER" type="string" required>
+  Database username.
+  
+  **Default:** `postgres`
+  
+  ```bash
+  DB_USER=postgres
+  ```
+</ParamField>
+
+<ParamField path="DB_PASS" type="string" required>
+  Database password.
+  
+  **Default:** `1234` (change in production!)
+  
+  ```bash
+  DB_PASS=your_secure_password_here
+  ```
+  
+  <Warning>
+  Use a strong password in production environments.
+  </Warning>
+</ParamField>
+
+<ParamField path="DB_NAME" type="string" required>
+  Database name.
+  
+  **Default:** `db_hub`
+  
+  ```bash
+  DB_NAME=db_hub
+  ```
+</ParamField>
+
+### Database Configuration Example
+
+<CodeGroup>
+```bash Development
+DB_HOST=localhost
+DB_PORT=5432
+DB_USER=postgres
+DB_PASS=1234
+DB_NAME=db_hub
+```
+
+```bash Docker
+DB_HOST=postgres
+DB_PORT=5432
+DB_USER=postgres
+DB_PASS=secure_password_123
+DB_NAME=db_hub
+```
+
+```bash Production
+DB_HOST=production-db.example.com
+DB_PORT=5432
+DB_USER=prod_user
+DB_PASS=${DATABASE_PASSWORD}  # From secrets manager
+DB_NAME=devtools_prod
+```
+</CodeGroup>
+
+### TypeORM Configuration
+
+The database configuration is loaded in `src/config/database.config.ts`:
+
+```typescript
+import { TypeOrmModuleOptions } from "@nestjs/typeorm";
+
+export const databaseConfig = (): TypeOrmModuleOptions => ({
+  type: "postgres",
+  host: process.env.DB_HOST,
+  port: Number(process.env.DB_PORT),
+  username: process.env.DB_USER,
+  password: process.env.DB_PASS,
+  database: process.env.DB_NAME,
+  autoLoadEntities: true,
+  synchronize: true, // ⚠️ Only in development
+});
+```
+
+<Warning>
+**Important:** Set `synchronize: false` in production to prevent automatic schema changes. Use migrations instead.
+</Warning>
+
+---
+
+### Email/SMTP Configuration
+
+Email notification settings using Nodemailer with Gmail SMTP.
+
+<ParamField path="MAIL_HOST" type="string" required>
+  SMTP server hostname.
+  
+  **Default:** `smtp.gmail.com`
+  
+  ```bash
+  MAIL_HOST=smtp.gmail.com
+  ```
+  
+  **Other providers:**
+  - Outlook: `smtp-mail.outlook.com`
+  - SendGrid: `smtp.sendgrid.net`
+  - Mailgun: `smtp.mailgun.org`
+</ParamField>
+
+<ParamField path="MAIL_PORT" type="number" required>
+  SMTP server port.
+  
+  **Default:** `465` (SSL/TLS)
+  
+  ```bash
+  MAIL_PORT=465
+  ```
+  
+  **Common ports:**
+  - `465` - SSL/TLS (secure, recommended)
+  - `587` - STARTTLS
+  - `25` - Non-encrypted (not recommended)
+</ParamField>
+
+<ParamField path="MAIL_USER" type="string" required>
+  SMTP authentication username (usually your email address).
+  
+  ```bash
+  MAIL_USER=your_email@gmail.com
+  ```
+</ParamField>
+
+<ParamField path="MAIL_PASS" type="string" required>
+  SMTP authentication password.
+  
+  For Gmail, use an **App Password**, not your regular password.
+  
+  ```bash
+  MAIL_PASS=xxxx xxxx xxxx xxxx
+  ```
+  
+  <Info>
+  See the [Email Notifications guide](/guides/email-notifications) for instructions on generating Gmail App Passwords.
+  </Info>
+</ParamField>
+
+<ParamField path="MAIL_FROM" type="string" required>
+  Default sender address for outgoing emails.
+  
+  Format: `"Display Name <email@domain.com>"`
+  
+  ```bash
+  MAIL_FROM="DevToolsHub <noreply@devtoolshub.com>"
+  ```
+</ParamField>
+
+### Email Configuration Examples
+
+<CodeGroup>
+```bash Gmail
+MAIL_HOST=smtp.gmail.com
+MAIL_PORT=465
+MAIL_USER=your_email@gmail.com
+MAIL_PASS=xxxx xxxx xxxx xxxx
+MAIL_FROM="DevToolsHub <your_email@gmail.com>"
+```
+
+```bash SendGrid
+MAIL_HOST=smtp.sendgrid.net
+MAIL_PORT=465
+MAIL_USER=apikey
+MAIL_PASS=your_sendgrid_api_key
+MAIL_FROM="DevToolsHub <noreply@yourdomain.com>"
+```
+
+```bash Custom SMTP
+MAIL_HOST=mail.yourdomain.com
+MAIL_PORT=587
+MAIL_USER=notifications@yourdomain.com
+MAIL_PASS=your_smtp_password
+MAIL_FROM="DevToolsHub <notifications@yourdomain.com>"
+```
+</CodeGroup>
+
+---
+
+### Application Configuration
+
+<ParamField path="NODE_ENV" type="string" default="development">
+  Application environment mode.
+  
+  **Values:** `development` | `production` | `test`
+  
+  ```bash
+  NODE_ENV=development
+  # NODE_ENV=production
+  ```
+  
+  <Note>
+  This variable is commented out in `.env.example`. Uncomment and set it based on your environment.
+  </Note>
+</ParamField>
+
+<ParamField path="PORT" type="number" default="3000">
+  Port on which the API server listens.
+  
+  ```bash
+  PORT=3000
+  ```
+  
+  The application defaults to port 3000 if not specified (see `src/main.ts:65`).
+</ParamField>
+
+<ParamField path="API_PREFIX" type="string" default="api">
+  Global prefix for all API routes.
+  
+  **Configured in:** `src/main.ts:14`
+  
+  ```typescript
+  app.setGlobalPrefix('api');
+  ```
+  
+  All routes will be prefixed with `/api` (e.g., `/api/auth/login`).
+</ParamField>
+
+---
+
+### Security Configuration
+
+<ParamField path="JWT_SECRET" type="string" required>
+  Secret key for signing JWT tokens.
+  
+  **Default:** `secretKey` (insecure, only for development)
+  
+  ```bash
+  JWT_SECRET=your_super_secret_jwt_key_minimum_32_characters
+  ```
+  
+  <Warning>
+  **Security Requirements:**
+  - Use a strong, randomly generated key (minimum 32 characters)
+  - Never use the default value in production
+  - Store securely using a secrets manager (AWS Secrets Manager, HashiCorp Vault, etc.)
+  - Rotate regularly
+  </Warning>
+  
+  **Generate a secure secret:**
+  ```bash
+  node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+  ```
+</ParamField>
+
+<ParamField path="JWT_EXPIRATION" type="string" default="1d">
+  JWT token expiration time.
+  
+  **Format:** Use `ms` package format (e.g., `60m`, `24h`, `7d`)
+  
+  ```bash
+  JWT_EXPIRATION=1d
+  ```
+  
+  <Note>
+  This variable is not in `.env.example` but is used by JWT configuration. The default is typically set in the auth module.
+  </Note>
+</ParamField>
+
+<ParamField path="CORS_ORIGIN" type="string" default="*">
+  Allowed CORS origins.
+  
+  **Current configuration:** Accepts all origins (`origin: true` in `src/main.ts:36`)
+  
+  ```typescript
+  app.enableCors({
+    origin: true, // Allow all origins
+    methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
+    credentials: true,
+  });
+  ```
+  
+  <Warning>
+  In production, restrict CORS to specific domains:
+  ```typescript
+  app.enableCors({
+    origin: ['https://yourdomain.com', 'https://app.yourdomain.com'],
+    credentials: true,
+  });
+  ```
+  </Warning>
+</ParamField>
+
+---
+
+## Complete .env Template
+
+Here's the complete `.env.example` file from the project:
+
+```bash
+# ===================================
+# DATABASE CONFIGURATION
+# ===================================
+DB_HOST=localhost
+DB_PORT=5432
+DB_USER=postgres
+DB_PASS=1234
+DB_NAME=db_hub
+
+# ===================================
+# APPLICATION CONFIGURATION
+# ===================================
+#NODE_ENV=development
+
+# ===================================
+# MAIL CONFIGURATION (Gmail)
+# ===================================
+MAIL_HOST=smtp.gmail.com
+MAIL_PORT=465
+MAIL_USER=nestmailerpruebas@gmail.com
+MAIL_PASS=rabp kwqu vywi nhop
+MAIL_FROM="DevToolsHub <tu_correo@gmail.com>"
+
+# ===================================
+# SECURITY CONFIGURATION
+# ===================================
+# JWT_SECRET=your_secret_key_here
+# JWT_EXPIRATION=1d
+```
+
+<Note>
+The example file includes demo credentials. Replace all values with your actual configuration.
+</Note>
+
+---
+
+## Environment-Specific Configurations
+
+### Development Environment
+
+```bash
+# .env.development
+NODE_ENV=development
+DB_HOST=localhost
+DB_PORT=5432
+DB_USER=postgres
+DB_PASS=1234
+DB_NAME=db_hub_dev
+
+# Allow all CORS origins
+CORS_ORIGIN=*
+
+# Less strict JWT expiration
+JWT_EXPIRATION=7d
+```
+
+### Production Environment
+
+```bash
+# .env.production
+NODE_ENV=production
+DB_HOST=prod-db.internal
+DB_PORT=5432
+DB_USER=${DB_USER_SECRET}
+DB_PASS=${DB_PASS_SECRET}
+DB_NAME=devtools_prod
+
+# Restrict CORS
+CORS_ORIGIN=https://devtoolshub.com
+
+# Strict JWT expiration
+JWT_EXPIRATION=1h
+
+# Use secure email service
+MAIL_HOST=smtp.sendgrid.net
+MAIL_USER=apikey
+MAIL_PASS=${SENDGRID_API_KEY}
+```
+
+### Testing Environment
+
+```bash
+# .env.test
+NODE_ENV=test
+DB_HOST=localhost
+DB_PORT=5433
+DB_USER=test_user
+DB_PASS=test_pass
+DB_NAME=db_hub_test
+
+# Disable email sending in tests
+MAIL_HOST=localhost
+MAIL_PORT=1025
+```
+
+---
+
+## Loading Environment Variables
+
+The application uses `@nestjs/config` to load environment variables:
+
+```typescript
+// src/app.module.ts
+import { Module } from "@nestjs/common";
+import { ConfigModule } from "@nestjs/config";
+
+@Module({
+  imports: [
+    ConfigModule.forRoot({ isGlobal: true }),
+    // Other modules...
+  ],
+})
+export class AppModule {}
+```
+
+The `isGlobal: true` option makes environment variables available throughout the application without additional imports.
+
+### Accessing Environment Variables
+
+<CodeGroup>
+```typescript Direct Access
+// Using process.env (simple approach)
+const dbHost = process.env.DB_HOST;
+const dbPort = Number(process.env.DB_PORT);
+```
+
+```typescript ConfigService
+// Using ConfigService (recommended)
+import { Injectable } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+
+@Injectable()
+export class MyService {
+  constructor(private configService: ConfigService) {}
+
+  getDatabaseHost() {
+    return this.configService.get<string>('DB_HOST');
+  }
+
+  getDatabasePort() {
+    return this.configService.get<number>('DB_PORT');
+  }
+}
+```
+
+```typescript Type-Safe Configuration
+// Create a typed configuration
+export const config = () => ({
+  database: {
+    host: process.env.DB_HOST,
+    port: parseInt(process.env.DB_PORT, 10),
+    user: process.env.DB_USER,
+    password: process.env.DB_PASS,
+    name: process.env.DB_NAME,
+  },
+  mail: {
+    host: process.env.MAIL_HOST,
+    port: parseInt(process.env.MAIL_PORT, 10),
+    user: process.env.MAIL_USER,
+    password: process.env.MAIL_PASS,
+    from: process.env.MAIL_FROM,
+  },
+});
+
+// In app.module.ts
+ConfigModule.forRoot({
+  isGlobal: true,
+  load: [config],
+});
+```
+</CodeGroup>
+
+---
+
+## Validation
+
+Validate environment variables at application startup to catch configuration errors early:
+
+```typescript
+// src/config/env.validation.ts
+import { plainToClass } from 'class-transformer';
+import { IsString, IsNumber, IsEnum, validateSync } from 'class-validator';
+
+enum Environment {
+  Development = 'development',
+  Production = 'production',
+  Test = 'test',
+}
+
+class EnvironmentVariables {
+  @IsEnum(Environment)
+  NODE_ENV: Environment;
+
+  @IsString()
+  DB_HOST: string;
+
+  @IsNumber()
+  DB_PORT: number;
+
+  @IsString()
+  DB_USER: string;
+
+  @IsString()
+  DB_PASS: string;
+
+  @IsString()
+  DB_NAME: string;
+
+  @IsString()
+  JWT_SECRET: string;
+}
+
+export function validate(config: Record<string, unknown>) {
+  const validatedConfig = plainToClass(EnvironmentVariables, config, {
+    enableImplicitConversion: true,
+  });
+  
+  const errors = validateSync(validatedConfig, {
+    skipMissingProperties: false,
+  });
+
+  if (errors.length > 0) {
+    throw new Error(errors.toString());
+  }
+  
+  return validatedConfig;
+}
+
+// In app.module.ts
+ConfigModule.forRoot({
+  isGlobal: true,
+  validate,
+});
+```
+
+---
+
+## Security Best Practices
+
+<Warning>
+**Critical Security Guidelines:**
+</Warning>
+
+1. **Never commit `.env` files**
+   ```bash
+   # .gitignore
+   .env
+   .env.*
+   !.env.example
+   ```
+
+2. **Use secrets managers in production**
+   - AWS Secrets Manager
+   - HashiCorp Vault
+   - Azure Key Vault
+   - Google Secret Manager
+
+3. **Rotate secrets regularly**
+   - Database passwords: Every 90 days
+   - JWT secrets: Every 180 days
+   - API keys: According to provider recommendations
+
+4. **Use different credentials per environment**
+   - Never use production credentials in development
+   - Use separate databases for each environment
+
+5. **Validate and sanitize all inputs**
+   - Use class-validator for environment variable validation
+   - Set reasonable defaults for non-sensitive values
+
+6. **Limit access to environment variables**
+   - Restrict who can view production secrets
+   - Use CI/CD secret management features
+   - Audit access to sensitive configuration
+
+---
+
+## Troubleshooting
+
+<Accordion title="Environment Variables Not Loading">
+**Problem:** Application can't find environment variables
+
+**Solutions:**
+1. Verify `.env` file exists in the project root
+2. Check file name is exactly `.env` (no spaces or extra extensions)
+3. Restart the application after modifying `.env`
+4. Ensure `ConfigModule.forRoot({ isGlobal: true })` is imported in `AppModule`
+</Accordion>
+
+<Accordion title="Database Connection Failed">
+**Problem:** Can't connect to PostgreSQL
+
+**Check:**
+1. Verify all `DB_*` variables are set correctly
+2. Ensure PostgreSQL is running
+3. Test connection manually:
+   ```bash
+   psql -h localhost -p 5432 -U postgres -d db_hub
+   ```
+4. For Docker: Use container name instead of `localhost` for `DB_HOST`
+</Accordion>
+
+<Accordion title="Email Sending Failed">
+**Problem:** Emails are not being sent
+
+**Solutions:**
+1. Verify SMTP credentials are correct
+2. For Gmail: Ensure you're using an App Password, not your account password
+3. Check if "Less secure app access" is enabled (if not using App Passwords)
+4. Verify SMTP port is not blocked by firewall
+5. Test SMTP connection:
+   ```bash
+   telnet smtp.gmail.com 465
+   ```
+</Accordion>
+
+<Accordion title="JWT Authentication Not Working">
+**Problem:** JWT tokens are invalid or expired
+
+**Check:**
+1. Verify `JWT_SECRET` is set and matches between token generation and validation
+2. Check token expiration time (`JWT_EXPIRATION`)
+3. Ensure the secret is the same across all application instances
+4. Clear any cached tokens and request a new one
+</Accordion>
+
+---
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Authentication" icon="shield" href="/guides/authentication">
+    Configure JWT authentication with proper secrets
+  </Card>
+  <Card title="Email Notifications" icon="envelope" href="/guides/email-notifications">
+    Set up email notifications with Gmail or other providers
+  </Card>
+  <Card title="Docker Deployment" icon="docker" href="/guides/docker-deployment">
+    Deploy with Docker using environment variables
+  </Card>
+  <Card title="Installation Guide" icon="download" href="/installation">
+    Complete installation and setup instructions
+  </Card>
+</CardGroup>

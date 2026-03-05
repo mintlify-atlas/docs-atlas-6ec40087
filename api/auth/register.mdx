@@ -1,0 +1,217 @@
+---
+title: 'Register User'
+api: 'POST /api/auth/register'
+description: 'Create a new user account with email and password'
+---
+
+## Overview
+
+This endpoint allows new users to register an account in the DevTools Hub platform. Upon successful registration, a welcome email is automatically sent to the user's email address.
+
+<Note>
+  The password is hashed using bcrypt with 10 salt rounds before being stored in the database.
+</Note>
+
+## Request Body
+
+<ParamField body="name" type="string" required>
+  Full name of the user.
+  
+  **Validation:**
+  - Cannot be empty
+  - Error message: "El nombre es requerido"
+  
+  **Example:** `"Juan Pérez"`
+</ParamField>
+
+<ParamField body="email" type="string" required>
+  Valid email address for the user account. Must be unique in the system.
+  
+  **Validation:**
+  - Must be a valid email format
+  - Error message: "El email debe ser una dirección válida"
+  
+  **Example:** `"juan.perez@ejemplo.com"`
+</ParamField>
+
+<ParamField body="password" type="string" required>
+  User's password for authentication.
+  
+  **Validation:**
+  - Minimum length: 6 characters
+  - Error message: "La contraseña debe tener al menos 6 caracteres"
+  
+  **Example:** `"MiContraseñaSegura123"`
+</ParamField>
+
+## Response
+
+<ResponseField name="success" type="boolean" required>
+  Indicates whether the registration was successful.
+</ResponseField>
+
+<ResponseField name="message" type="string" required>
+  Human-readable message describing the result.
+  
+  **Example:** `"User registered successfully"`
+</ResponseField>
+
+<ResponseField name="data" type="object">
+  Contains the newly created user information.
+  
+  <Expandable title="data properties">
+    <ResponseField name="id" type="string">
+      Unique identifier for the newly created user.
+    </ResponseField>
+    
+    <ResponseField name="email" type="string">
+      Email address of the registered user.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+## Examples
+
+<CodeGroup>
+
+```bash cURL
+curl -X POST https://api.devtoolshub.com/api/auth/register \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Juan Pérez",
+    "email": "juan.perez@ejemplo.com",
+    "password": "MiContraseñaSegura123"
+  }'
+```
+
+```javascript JavaScript
+const response = await fetch('https://api.devtoolshub.com/api/auth/register', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+  },
+  body: JSON.stringify({
+    name: 'Juan Pérez',
+    email: 'juan.perez@ejemplo.com',
+    password: 'MiContraseñaSegura123'
+  })
+});
+
+const data = await response.json();
+console.log(data);
+```
+
+```python Python
+import requests
+
+url = "https://api.devtoolshub.com/api/auth/register"
+payload = {
+    "name": "Juan Pérez",
+    "email": "juan.perez@ejemplo.com",
+    "password": "MiContraseñaSegura123"
+}
+
+response = requests.post(url, json=payload)
+print(response.json())
+```
+
+</CodeGroup>
+
+### Success Response (201)
+
+```json
+{
+  "success": true,
+  "message": "User registered successfully",
+  "data": {
+    "id": "550e8400-e29b-41d4-a716-446655440000",
+    "email": "juan.perez@ejemplo.com"
+  }
+}
+```
+
+## Error Responses
+
+<Expandable title="409 Conflict - Email Already Registered">
+
+**Scenario:** The email address is already registered in the system.
+
+**Source:** `register.use-case.ts:20`
+
+```json
+{
+  "statusCode": 409,
+  "message": "Email already registered",
+  "error": "Conflict"
+}
+```
+
+</Expandable>
+
+<Expandable title="400 Bad Request - Validation Errors">
+
+**Scenario:** Request body fails validation rules.
+
+### Missing Name
+```json
+{
+  "statusCode": 400,
+  "message": ["El nombre es requerido"],
+  "error": "Bad Request"
+}
+```
+
+### Invalid Email Format
+```json
+{
+  "statusCode": 400,
+  "message": ["El email debe ser una dirección válida"],
+  "error": "Bad Request"
+}
+```
+
+### Password Too Short
+```json
+{
+  "statusCode": 400,
+  "message": ["La contraseña debe tener al menos 6 caracteres"],
+  "error": "Bad Request"
+}
+```
+
+### Multiple Validation Errors
+```json
+{
+  "statusCode": 400,
+  "message": [
+    "El nombre es requerido",
+    "El email debe ser una dirección válida",
+    "La contraseña debe tener al menos 6 caracteres"
+  ],
+  "error": "Bad Request"
+}
+```
+
+</Expandable>
+
+## Implementation Details
+
+<Warning>
+  Password hashing is performed using bcrypt with 10 salt rounds. Never store passwords in plain text.
+</Warning>
+
+### Process Flow
+
+1. **Validation**: Request body is validated against class-validator decorators
+2. **Email Check**: System verifies that the email is not already registered
+3. **Password Hashing**: Password is hashed using bcrypt (10 salt rounds)
+4. **User Creation**: User entity is created and saved to the database
+5. **Welcome Email**: Confirmation email is automatically sent via `SendPaymentConfirmationUseCase`
+6. **Response**: Returns user ID and email upon success
+
+### Related Files
+
+- Controller: `src/modules/auth/infrastructure/controllers/auth.controller.ts:11-18`
+- DTO: `src/modules/auth/presentation/dto/register.dto.ts`
+- Use Case: `src/modules/auth/application/use-cases/register.use-case.ts`
+- Response DTO: `src/modules/auth/presentation/dto/response.dto.ts`
